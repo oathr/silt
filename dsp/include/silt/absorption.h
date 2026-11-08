@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-namespace fathom {
+namespace silt {
 
 // Sea water absorption, Francois & Garrison (JASA 72, 1982): boric acid, magnesium
 // sulphate and pure water relaxations. dB per km, f in Hz. Defaults: 15 °C, 35 ‰, pH 8.
@@ -34,4 +34,4 @@ inline float absorptionCornerHz(float rangeM, float murk, float depthM) {
     return std::exp(0.5f * (lo + hi));
 }
 
-}  // namespace fathom
+}  // namespace silt

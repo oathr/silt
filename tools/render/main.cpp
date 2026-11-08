@@ -1,7 +1,7 @@
-// fathom_render: runs the FATHOM engine offline.
-//   fathom_render --analyse                     measurements (physics checks, level, CPU, safety)
-//   fathom_render <in.wav> <out dir> [preset]   renders the file through every preset (or one)
-//   fathom_render --demo <out dir>              same, with built-in test sounds
+// silt_render: runs the SILT engine offline.
+//   silt_render --analyse                     measurements (physics checks, level, CPU, safety)
+//   silt_render <in.wav> <out dir> [preset]   renders the file through every preset (or one)
+//   silt_render --demo <out dir>              same, with built-in test sounds
 #include <chrono>
 #include <complex>
 #include <cstdio>
@@ -12,7 +12,7 @@
 #include "../../plugin/Source/Presets.h"
 #include "wav.h"
 
-using namespace fathom;
+using namespace silt;
 
 namespace {
 
@@ -96,7 +96,7 @@ Stereo demoSource(float fs) {
 
 int analyse() {
     const float fs = 48000.0f;
-    std::printf("FATHOM measurements, %.0f Hz\n\n", fs);
+    std::printf("SILT measurements, %.0f Hz\n\n", fs);
 
     std::printf("1. Sea water absorption (Francois-Garrison, 15 C, 35 ppt, 10 m)\n");
     for (float hz : {1000.0f, 10000.0f, 50000.0f}) std::printf("   %6.0f Hz : %6.3f dB/km\n", hz, absorptionDbPerKm(hz));
@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
     if (first == "--analyse") return analyse();
     if (first == "--demo") return render(demoSource(48000.0f), argc > 2 ? argv[2] : "renders", argc > 3 ? argv[3] : "");
     if (argc < 3) {
-        std::printf("usage: fathom_render --analyse | --demo <dir> [preset] | <in.wav> <dir> [preset]\n");
+        std::printf("usage: silt_render --analyse | --demo <dir> [preset] | <in.wav> <dir> [preset]\n");
         return 1;
     }
     Stereo source;

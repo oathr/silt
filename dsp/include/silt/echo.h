@@ -5,7 +5,7 @@
 #include "absorption.h"
 #include "common.h"
 
-namespace fathom {
+namespace silt {
 
 // A distinct echo: a wall at DISTANCE (a cliff, a reef face, a hull, an ice shelf) sends
 // the sound back after 2 d / c, c = 1500 m/s (75 m -> 100 ms; in air it would take 437 ms).
@@ -108,4 +108,4 @@ private:
     float delay_ = 1000.0f, wobble_ = 0.0f, reflection_ = 0.7f, feedback_ = 0.3f, width_ = 1.0f;
 };
 
-}  // namespace fathom
+}  // namespace silt

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FATHOM</title>
+<title>SILT</title>
 <style>
-/* FATHOM: the look of the old flow-visualisation plates (smoke filaments around a body,
+/* SILT: the look of the old flow-visualisation plates (smoke filaments around a body,
    silver on black, grain, a scale bar, a scribbled plate number). Monochrome on purpose. */
 :root {
   --black: #050505;
@@ -92,7 +92,7 @@ body { color: var(--ink); font-family: var(--type); -webkit-font-smoothing: anti
 
   <div id="side">
     <div class="brand">
-      <h1>FATHOM</h1>
+      <h1>SILT</h1>
       <div class="sub">SOUND IN WATER<br>c = 1500 m/s · OATHR</div>
     </div>
     <div class="preset" id="presetBox">
@@ -239,10 +239,10 @@ const bridge = {
   connect(J) {
     this.juce = J;
     const B = window.__JUCE__.backend;
-    B.addEventListener('fathom_text', t => { for (const id in t) { this.texts.set(id, t[id]); this.notify(id); } });
-    B.addEventListener('fathom_live', l => live.fromHost(l));
-    B.addEventListener('fathom_ear', c => { live.curve = c; });
-    B.addEventListener('fathom_preset', i => presets.show(i));
+    B.addEventListener('silt_text', t => { for (const id in t) { this.texts.set(id, t[id]); this.notify(id); } });
+    B.addEventListener('silt_live', l => live.fromHost(l));
+    B.addEventListener('silt_ear', c => { live.curve = c; });
+    B.addEventListener('silt_preset', i => presets.show(i));
     for (const id of Object.keys(SPECS)) this.listen(id);
     J.getNativeFunction('getPresets')().then(r => { presets.list = r.list; presets.build(); presets.show(r.current); });
     J.getNativeFunction('ready')();
@@ -789,7 +789,7 @@ function drawPlate(t, dt) {
   g.strokeRect(P.x0 - 0.5, P.top - 0.5, W + 1, P.bottom - P.top + 1);
   g.fillStyle = 'rgba(236,235,229,0.5)';
   g.font = '9px Consolas, monospace';
-  g.fillText('FATHOM / FLOW OF SOUND IN SEA WATER / c 1500 m/s', P.x0, 14);
+  g.fillText('SILT / FLOW OF SOUND IN SEA WATER / c 1500 m/s', P.x0, 14);
   g.fillText(live.cpu !== null ? `${(live.sampleRate / 1000).toFixed(1)} kHz · CPU ${live.cpu.toFixed(1)} %` : 'PREVIEW', P.x1 - 120, 14);
   g.font = 'italic 15px ' + getComputedStyle(document.body).getPropertyValue('--hand');
   g.fillStyle = 'rgba(236,235,229,0.7)';

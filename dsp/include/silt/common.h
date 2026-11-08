@@ -9,7 +9,7 @@
 #include <xmmintrin.h>
 #endif
 
-namespace fathom {
+namespace silt {
 
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kTwoPi = 2.0f * kPi;
@@ -187,4 +187,4 @@ private:
     float ic1_ = 0.0f, ic2_ = 0.0f;
 };
 
-}  // namespace fathom
+}  // namespace silt

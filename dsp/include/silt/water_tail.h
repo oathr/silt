@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-namespace fathom {
+namespace silt {
 
 // The late, diffuse field of a body of water: a 16-line feedback delay network with a
 // Hadamard matrix (every line feeds every other: dense from the first milliseconds).
@@ -94,7 +94,7 @@ public:
         for (size_t m = 0; m < modes_.size(); ++m)
             if (sp.modes[m] > 0.0f) modes_[m].set(Svf::Type::Bandpass, sp.modes[m], 18.0f + 6.0f * float(m), 0.0f, fs_);
         predelaySamples_ = std::clamp(s_.predelayMs * 0.001f * fs_, 1.0f, float(predelay_.maxDelay()));
-        // Loudness roughly constant across decays (fathom_render --analyse).
+        // Loudness roughly constant across decays (silt_render --analyse).
         outGain_ = 0.30f / std::sqrt(std::max(0.25f, s_.decayS));
     }
 
@@ -160,4 +160,4 @@ private:
     float modDepth_ = 0.0f, diffusion_ = 0.6f, resonance_ = 0.0f, predelaySamples_ = 1.0f, outGain_ = 0.3f;
 };
 
-}  // namespace fathom
+}  // namespace silt

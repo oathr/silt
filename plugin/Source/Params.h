@@ -7,12 +7,12 @@
 #include <string>
 #include <vector>
 
-// Every parameter of FATHOM, in one table shared by the processor (APVTS layout), the
+// Every parameter of SILT, in one table shared by the processor (APVTS layout), the
 // editor (one web relay each), the engine (value by index) and the render tool.
 // Continuous parameters are stored 0..1, the knob's position; the functions below turn
 // them into real units, and `text` shows the same label as the UI and the DAW.
-// FATHOM only transforms the sound it gets: nothing is generated.
-namespace fathom::params {
+// SILT only transforms the sound it gets: nothing is generated.
+namespace silt::params {
 
 enum class Kind { Float, Bool, Choice };
 
@@ -133,4 +133,4 @@ inline int indexOf(const std::string& id) {
     return -1;
 }
 
-}  // namespace fathom::params
+}  // namespace silt::params

@@ -4,9 +4,9 @@
 
 #include "Engine.h"
 
-class FathomProcessor : public juce::AudioProcessor {
+class SiltProcessor : public juce::AudioProcessor {
 public:
-    FathomProcessor();
+    SiltProcessor();
 
     void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) override;
     void releaseResources() override {}
@@ -39,7 +39,7 @@ public:
 
     void resetEngine();
     juce::AudioProcessorValueTreeState apvts;
-    fathom::Engine engine;
+    silt::Engine engine;
     std::atomic<float> cpuLoad{0.0f};
 
 private:
@@ -48,6 +48,6 @@ private:
     int currentPreset_ = 0;
     std::atomic<bool> resetPending_{false};
 
-    JUCE_DECLARE_WEAK_REFERENCEABLE(FathomProcessor)
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FathomProcessor)
+    JUCE_DECLARE_WEAK_REFERENCEABLE(SiltProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SiltProcessor)
 };

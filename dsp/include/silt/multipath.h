@@ -6,7 +6,7 @@
 #include "absorption.h"
 #include "common.h"
 
-namespace fathom {
+namespace silt {
 
 // Sea floors: density (water = 1), sound speed, extra loss per bounce (attenuation in the
 // sediment) and rms roughness in metres (scatters the treble of each bounce).
@@ -286,4 +286,4 @@ private:
     bool absorbing_ = false, highpassing_ = false, first_ = true;
 };
 
-}  // namespace fathom
+}  // namespace silt

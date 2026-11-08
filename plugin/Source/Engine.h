@@ -1,14 +1,14 @@
 #pragma once
 
-#include <fathom/ear.h>
-#include <fathom/echo.h>
-#include <fathom/multipath.h>
-#include <fathom/tone.h>
-#include <fathom/water_tail.h>
+#include <silt/ear.h>
+#include <silt/echo.h>
+#include <silt/multipath.h>
+#include <silt/tone.h>
+#include <silt/water_tail.h>
 
 #include "Params.h"
 
-namespace fathom {
+namespace silt {
 
 // The whole chain, without JUCE (the render tool runs it too):
 //   input -> PATHS (image method, real absorption, waveguide cut) -> MUFFLE
@@ -240,4 +240,4 @@ private:
     int counter_ = 0;
 };
 
-}  // namespace fathom
+}  // namespace silt

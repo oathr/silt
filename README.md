@@ -1,6 +1,6 @@
-# FATHOM — sound under water
+# SILT — sound under water
 
-![FATHOM](docs/screenshot.png)
+![SILT](docs/screenshot.png)
 
 A VST3 effect that takes sounds recorded in air (a microphone, a sample, a whole mix) and
 puts them under water — realistically, and with controls to push it further. It only
@@ -8,11 +8,13 @@ puts them under water — realistically, and with controls to push it further. I
 bus and work at once: zero latency, level-matched, a ready starting preset.
 
 Why "reverb + delay + low-pass" never sounds right: it matches neither the physics of water
-nor how a head under water hears. FATHOM models both, separately.
+nor how a head under water hears. SILT models both, separately.
 
 **Download:** see [Releases](../../releases) (Windows x64, macOS universal).
 
-## What the physics says (and what FATHOM does with it)
+*Formerly named FATHOM.* SILT keeps FATHOM's VST3 ID and state format: sessions saved with FATHOM open in SILT with every setting (checked by `silt_hosttest --compat`). Remove `FATHOM.vst3` from your VST3 folder when installing SILT.
+
+## What the physics says (and what SILT does with it)
 
 | Fact | Consequence | Where |
 |---|---|---|
@@ -66,11 +68,11 @@ Haute mer, 1 km · Abysses, 4000 m · Fosse des Mariannes.
 
 ## Install
 
-- **Windows:** unzip, copy `FATHOM.vst3` into `C:\Program Files\Common Files\VST3\` (host
+- **Windows:** unzip, copy `SILT.vst3` into `C:\Program Files\Common Files\VST3\` (host
   closed), then rescan plug-ins in your host.
-- **macOS:** unzip, copy `FATHOM.vst3` into `~/Library/Audio/Plug-Ins/VST3/`. The plugin is
+- **macOS:** unzip, copy `SILT.vst3` into `~/Library/Audio/Plug-Ins/VST3/`. The plugin is
   not notarized yet, so run once in Terminal:
-  `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/FATHOM.vst3`, then rescan.
+  `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SILT.vst3`, then rescan.
 
 ## Build
 
@@ -80,19 +82,19 @@ Git. On Windows, the WebView2 SDK:
 ```
 nuget install Microsoft.Web.WebView2 -OutputDirectory C:\webview2
 cmake -S . -B build -A x64 -DJUCE_WEBVIEW2_PACKAGE_LOCATION=C:\webview2
-cmake --build build --config Release --target Fathom_VST3 fathom_hosttest fathom_render
-build\plugin\fathom_hosttest_artefacts\Release\fathom_hosttest.exe build\plugin\Fathom_artefacts\Release\VST3\FATHOM.vst3
+cmake --build build --config Release --target Silt_VST3 silt_hosttest silt_render
+build\plugin\silt_hosttest_artefacts\Release\silt_hosttest.exe build\plugin\Silt_artefacts\Release\VST3\SILT.vst3
 ```
 
 JUCE 8 is fetched by CMake (set `FETCHCONTENT_SOURCE_DIR_JUCE` to reuse a local copy).
 
 | Folder | Contents |
 |---|---|
-| [`dsp/include/fathom/`](dsp/include/fathom) | C++20 DSP core, header-only, no dependencies: image-method paths, echo, 16-line reverb, listener, MUFFLE / EQ, sea-water absorption |
+| [`dsp/include/silt/`](dsp/include/silt) | C++20 DSP core, header-only, no dependencies: image-method paths, echo, 16-line reverb, listener, MUFFLE / EQ, sea-water absorption |
 | [`plugin/Source/`](plugin/Source) | Parameter table, presets, the JUCE-free engine, JUCE processor and WebView editor |
 | [`design/ui.html`](design/ui.html) | The interface, embedded in the plugin; it also runs on its own in a browser |
-| [`plugin/HostTest/`](plugin/HostTest) | `fathom_hosttest`: loads the VST3 like a DAW and stresses it |
-| [`tools/render/`](tools/render) | `fathom_render`: measurements (`--analyse`) and offline renders of WAV files through the presets |
+| [`plugin/HostTest/`](plugin/HostTest) | `silt_hosttest`: loads the VST3 like a DAW and stresses it |
+| [`tools/render/`](tools/render) | `silt_render`: measurements (`--analyse`) and offline renders of WAV files through the presets |
 
 ## Measurements (v0.2, 48 kHz)
 
@@ -115,5 +117,5 @@ Acoustics* (Pekeris waveguide) · Eckart (rough-surface scattering) · Parvin, N
 
 ## Licence
 
-FATHOM is free software under the **GNU General Public License v3** ([LICENSE](LICENSE)).
+SILT is free software under the **GNU General Public License v3** ([LICENSE](LICENSE)).
 It uses JUCE 8 under its AGPLv3 licence. Made by **Oathr**.

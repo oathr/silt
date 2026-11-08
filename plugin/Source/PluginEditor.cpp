@@ -25,8 +25,8 @@ juce::String utf8(const char* s) { return juce::String::fromUTF8(s); }
 
 }  // namespace
 
-FathomEditor::Relays FathomEditor::createRelays() {
-    using namespace fathom::params;
+SiltEditor::Relays SiltEditor::createRelays() {
+    using namespace silt::params;
     Relays r;
     for (const Spec& s : all()) {
         switch (s.kind) {
@@ -38,16 +38,16 @@ FathomEditor::Relays FathomEditor::createRelays() {
     return r;
 }
 
-juce::WebBrowserComponent::Options FathomEditor::createOptions(Relays& relays) {
+juce::WebBrowserComponent::Options SiltEditor::createOptions(Relays& relays) {
     auto options = juce::WebBrowserComponent::Options{}
                        .withBackend(juce::WebBrowserComponent::Options::Backend::webview2)
                        .withWinWebView2Options(juce::WebBrowserComponent::Options::WinWebView2{}.withUserDataFolder(
-                           juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("FATHOM")))
+                           juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("SILT")))
                        .withNativeIntegrationEnabled()
                        .withResourceProvider(getResource)
                        .withNativeFunction("getPresets", [this](const juce::Array<juce::var>&, auto complete) {
                            juce::Array<juce::var> list;
-                           for (const auto& p : fathom::presets::all()) {
+                           for (const auto& p : silt::presets::all()) {
                                auto* item = new juce::DynamicObject();
                                item->setProperty("category", utf8(p.category));
                                item->setProperty("name", utf8(p.name));
@@ -80,9 +80,9 @@ juce::WebBrowserComponent::Options FathomEditor::createOptions(Relays& relays) {
     return options;
 }
 
-FathomEditor::FathomEditor(FathomProcessor& p)
+SiltEditor::SiltEditor(SiltProcessor& p)
     : AudioProcessorEditor(p), processor_(p), relays_(createRelays()), webView_(createOptions(relays_)) {
-    using namespace fathom::params;
+    using namespace silt::params;
     size_t si = 0, ti = 0, ci = 0;
     for (const Spec& s : all()) {
         auto& param = *p.apvts.getParameter(s.id.c_str());
@@ -95,7 +95,7 @@ FathomEditor::FathomEditor(FathomProcessor& p)
     shownValues_.assign(all().size(), -1.0f);
     earModel_.prepare(48000.0f);
 
-    processor_.onPresetChanged = [this] { webView_.emitEventIfBrowserIsVisible("fathom_preset", processor_.currentPresetOrInit()); };
+    processor_.onPresetChanged = [this] { webView_.emitEventIfBrowserIsVisible("silt_preset", processor_.currentPresetOrInit()); };
 
     addAndMakeVisible(webView_);
     webView_.goToURL(juce::WebBrowserComponent::getResourceProviderRoot());
@@ -110,7 +110,7 @@ FathomEditor::FathomEditor(FathomProcessor& p)
     startTimerHz(30);
 }
 
-FathomEditor::~FathomEditor() {
+SiltEditor::~SiltEditor() {
     stopTimer();
     if (processor_.editorScale > 0.0) {
         juce::PropertiesFile settings(settingsOptions());
@@ -120,15 +120,15 @@ FathomEditor::~FathomEditor() {
     processor_.onPresetChanged = nullptr;
 }
 
-void FathomEditor::resized() {
+void SiltEditor::resized() {
     webView_.setBounds(getLocalBounds());
     processor_.editorScale = double(getWidth()) / kPageWidth;
 }
 
-juce::PropertiesFile::Options FathomEditor::settingsOptions() {
+juce::PropertiesFile::Options SiltEditor::settingsOptions() {
     juce::PropertiesFile::Options o;
     o.applicationName = "settings";
-    o.folderName = "FATHOM";
+    o.folderName = "SILT";
     o.filenameSuffix = ".xml";
     o.osxLibrarySubFolder = "Application Support";
     o.millisecondsBeforeSaving = -1;
@@ -136,8 +136,8 @@ juce::PropertiesFile::Options FathomEditor::settingsOptions() {
 }
 
 // The DAW's label of every parameter whose value moved (all of them on request).
-void FathomEditor::sendTexts(bool all) {
-    const auto& specs = fathom::params::all();
+void SiltEditor::sendTexts(bool all) {
+    const auto& specs = silt::params::all();
     auto* texts = new juce::DynamicObject();
     bool any = false, earMoved = false;
     for (size_t i = 0; i < specs.size(); ++i) {
@@ -149,38 +149,38 @@ void FathomEditor::sendTexts(bool all) {
         any = true;
         if (specs[i].id == "ear" || specs[i].id == "ear_amount" || specs[i].id == "clarity" || specs[i].id == "submerge" || specs[i].id == "muffle") earMoved = true;
     }
-    if (any) webView_.emitEventIfBrowserIsVisible("fathom_text", juce::var(texts));
+    if (any) webView_.emitEventIfBrowserIsVisible("silt_text", juce::var(texts));
     else delete texts;
     if (earMoved && !all) sendEarCurve();
 }
 
 // The listener's response, 64 points from 20 Hz to 20 kHz, in dB (level match included).
-void FathomEditor::sendEarCurve() {
+void SiltEditor::sendEarCurve() {
     const auto value = [&](const char* id) { return processor_.apvts.getRawParameterValue(id)->load(); };
-    fathom::Ear::Settings s;
+    silt::Ear::Settings s;
     s.mode = int(std::lround(value("ear")));
     s.amount = value("ear_amount") * value("submerge");
     s.clarity = value("clarity");
     s.width = 1.0f;
     earModel_.set(s);
     earModel_.update();
-    // MUFFLE drawn on top of the ear: the same three filters as fathom::Muffle.
-    const float muffle = value("muffle"), corner = fathom::muffleCornerHz(muffle);
-    fathom::Svf a, b, boom;
-    a.set(fathom::Svf::Type::Lowpass, corner, 0.54f, 0.0f, 48000.0f);
-    b.set(fathom::Svf::Type::Lowpass, corner, 1.0f + 0.6f * muffle, 0.0f, 48000.0f);
-    boom.set(fathom::Svf::Type::Bell, std::max(40.0f, corner * 0.55f), 0.9f, 4.0f * muffle, 48000.0f);
+    // MUFFLE drawn on top of the ear: the same three filters as silt::Muffle.
+    const float muffle = value("muffle"), corner = silt::muffleCornerHz(muffle);
+    silt::Svf a, b, boom;
+    a.set(silt::Svf::Type::Lowpass, corner, 0.54f, 0.0f, 48000.0f);
+    b.set(silt::Svf::Type::Lowpass, corner, 1.0f + 0.6f * muffle, 0.0f, 48000.0f);
+    boom.set(silt::Svf::Type::Bell, std::max(40.0f, corner * 0.55f), 0.9f, 4.0f * muffle, 48000.0f);
     juce::Array<juce::var> curve;
     for (int i = 0; i < 64; ++i) {
         const float hz = 20.0f * std::pow(1000.0f, float(i) / 63.0f);
         float db = earModel_.responseDb(hz);
-        if (corner > 0.0f) db += fathom::gainToDb(a.magnitude(hz, 48000.0f) * b.magnitude(hz, 48000.0f) * boom.magnitude(hz, 48000.0f));
+        if (corner > 0.0f) db += silt::gainToDb(a.magnitude(hz, 48000.0f) * b.magnitude(hz, 48000.0f) * boom.magnitude(hz, 48000.0f));
         curve.add(db);
     }
-    webView_.emitEventIfBrowserIsVisible("fathom_ear", curve);
+    webView_.emitEventIfBrowserIsVisible("silt_ear", curve);
 }
 
-void FathomEditor::timerCallback() {
+void SiltEditor::timerCallback() {
     if (!pageReady_) return;
     sendTexts(false);
     const auto& engine = processor_.engine;
@@ -193,7 +193,7 @@ void FathomEditor::timerCallback() {
     // Arrivals: [ms, gain, surface bounces, bottom bounces] for every audible path.
     juce::Array<juce::var> arrivals;
     const auto& paths = engine.paths();
-    for (int i = 0; i < fathom::MultiPath::kArrivalsShown; ++i) {
+    for (int i = 0; i < silt::MultiPath::kArrivalsShown; ++i) {
         const auto& a = paths.arrival(i);
         const float g = a.gain.load(std::memory_order_relaxed);
         if (std::abs(g) < 0.003f) continue;
@@ -211,5 +211,5 @@ void FathomEditor::timerCallback() {
         live->setProperty("cpu", processor_.cpuLoad.load() * 100.0f);
         live->setProperty("sampleRate", processor_.getSampleRate());
     }
-    webView_.emitEventIfBrowserIsVisible("fathom_live", juce::var(live));
+    webView_.emitEventIfBrowserIsVisible("silt_live", juce::var(live));
 }

@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-namespace fathom {
+namespace silt {
 
 // Who listens. Most of the "underwater sound" is here, not in the water: over the
 // distances of a scene, sea water removes almost no treble (under 1 dB at 50 kHz over
@@ -143,4 +143,4 @@ private:
     float width_ = 1.0f, pocketGain_ = 0.0f, makeup_ = 1.0f;
 };
 
-}  // namespace fathom
+}  // namespace silt

@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-namespace fathom {
+namespace silt {
 
 // MUFFLE: how much the water swallows the treble. At 0 the water is exactly physical
 // (Francois-Garrison absorption over the real distance, almost nothing at scene range);
@@ -98,4 +98,4 @@ private:
     std::array<std::array<Svf, 4>, 2> f_;
 };
 
-}  // namespace fathom
+}  // namespace silt

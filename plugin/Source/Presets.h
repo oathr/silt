@@ -9,7 +9,7 @@
 // Factory presets, written in real units (metres, seconds, dB) through the inverse maps
 // of Params.h. Anything not listed keeps its default. UTF-8 names.
 // The first one is what a new instance starts with: made to drop on a master bus.
-namespace fathom::presets {
+namespace silt::presets {
 
 struct Preset {
     const char* category;
@@ -114,4 +114,4 @@ inline std::vector<float> valuesOf(const Preset& p) {
     return v;
 }
 
-}  // namespace fathom::presets
+}  // namespace silt::presets

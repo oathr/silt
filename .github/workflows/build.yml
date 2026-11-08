@@ -18,30 +18,30 @@ jobs:
         run: nuget install Microsoft.Web.WebView2 -OutputDirectory "${{ runner.temp }}\webview2"
 
       - name: Configure
-        run: cmake -S . -B build -A x64 -DFATHOM_BUILD_RENDER=OFF -DJUCE_WEBVIEW2_PACKAGE_LOCATION="${{ runner.temp }}\webview2"
+        run: cmake -S . -B build -A x64 -DSILT_BUILD_RENDER=OFF -DJUCE_WEBVIEW2_PACKAGE_LOCATION="${{ runner.temp }}\webview2"
 
       - name: Build
-        run: cmake --build build --config Release --target Fathom_VST3 fathom_hosttest --parallel
+        run: cmake --build build --config Release --target Silt_VST3 silt_hosttest --parallel
 
       - name: Host stress test
-        run: build\plugin\fathom_hosttest_artefacts\Release\fathom_hosttest.exe build\plugin\Fathom_artefacts\Release\VST3\FATHOM.vst3 --no-timing
+        run: build\plugin\silt_hosttest_artefacts\Release\silt_hosttest.exe build\plugin\Silt_artefacts\Release\VST3\SILT.vst3 --no-timing
 
       - uses: actions/upload-artifact@v4
         with:
-          name: FATHOM-VST3-Windows
-          path: build/plugin/Fathom_artefacts/Release/VST3/FATHOM.vst3
+          name: SILT-VST3-Windows
+          path: build/plugin/Silt_artefacts/Release/VST3/SILT.vst3
 
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
       - name: Configure
-        run: cmake -S . -B build -G Xcode -DFATHOM_BUILD_RENDER=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+        run: cmake -S . -B build -G Xcode -DSILT_BUILD_RENDER=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
       - name: Build
-        run: cmake --build build --config Release --target Fathom_VST3 fathom_hosttest
+        run: cmake --build build --config Release --target Silt_VST3 silt_hosttest
       - name: Host stress test
-        run: build/plugin/fathom_hosttest_artefacts/Release/fathom_hosttest build/plugin/Fathom_artefacts/Release/VST3/FATHOM.vst3 --no-timing
+        run: build/plugin/silt_hosttest_artefacts/Release/silt_hosttest build/plugin/Silt_artefacts/Release/VST3/SILT.vst3 --no-timing
       - uses: actions/upload-artifact@v4
         with:
-          name: FATHOM-VST3-macOS
-          path: build/plugin/Fathom_artefacts/Release/VST3/FATHOM.vst3
+          name: SILT-VST3-macOS
+          path: build/plugin/Silt_artefacts/Release/VST3/SILT.vst3

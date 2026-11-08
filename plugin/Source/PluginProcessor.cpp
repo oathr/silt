@@ -33,7 +33,7 @@ float valueFromText(const std::function<std::string(float)>& text, const juce::S
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createLayout() {
-    using namespace fathom::params;
+    using namespace silt::params;
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     std::unique_ptr<juce::AudioProcessorParameterGroup> group;
     int groups = 0;
@@ -76,28 +76,30 @@ constexpr int kStateVersion = 2;
 
 }  // namespace
 
-FathomProcessor::FathomProcessor()
+SiltProcessor::SiltProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+      // The state tree keeps the tag of the plugin's first name, FATHOM: sessions saved
+      // before the rename load unchanged (the VST3 ID, Oatr + Fthm, did not change either).
       apvts(*this, nullptr, "FATHOM", createLayout()) {
-    for (const auto& s : fathom::params::all()) raw_.push_back(apvts.getRawParameterValue(s.id.c_str()));
+    for (const auto& s : silt::params::all()) raw_.push_back(apvts.getRawParameterValue(s.id.c_str()));
     values_.resize(raw_.size());
     applyPreset(0, false);  // a new instance starts on MASTER / Sous l'eau: ready for a master bus
 }
 
-bool FathomProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
+bool SiltProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     const auto out = layouts.getMainOutputChannelSet();
     const auto in = layouts.getMainInputChannelSet();
     return out == juce::AudioChannelSet::stereo() && (in == juce::AudioChannelSet::stereo() || in == juce::AudioChannelSet::mono());
 }
 
-void FathomProcessor::prepareToPlay(double sampleRate, int) {
+void SiltProcessor::prepareToPlay(double sampleRate, int) {
     engine.prepare(float(sampleRate));
     setLatencySamples(0);
 }
 
-void FathomProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
+void SiltProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
     juce::ScopedNoDenormals noDenormals;
     const auto start = juce::Time::getHighResolutionTicks();
     const int numSamples = buffer.getNumSamples();
@@ -111,48 +113,48 @@ void FathomProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
     cpuLoad.store(cpuLoad.load(std::memory_order_relaxed) * 0.95f + float(elapsed / budget) * 0.05f, std::memory_order_relaxed);
 }
 
-juce::AudioProcessorEditor* FathomProcessor::createEditor() { return new FathomEditor(*this); }
+juce::AudioProcessorEditor* SiltProcessor::createEditor() { return new SiltEditor(*this); }
 
-void FathomProcessor::resetEngine() {
+void SiltProcessor::resetEngine() {
     suspendProcessing(true);  // waits for the audio callback, then keeps it out
     engine.reset();
     suspendProcessing(false);
 }
 
-int FathomProcessor::getNumPrograms() { return int(fathom::presets::all().size()); }
+int SiltProcessor::getNumPrograms() { return int(silt::presets::all().size()); }
 
-const juce::String FathomProcessor::getProgramName(int index) {
-    const auto& list = fathom::presets::all();
+const juce::String SiltProcessor::getProgramName(int index) {
+    const auto& list = silt::presets::all();
     if (index < 0 || index >= int(list.size())) return {};
     return juce::String::fromUTF8(list[size_t(index)].category) + " / " + juce::String::fromUTF8(list[size_t(index)].name);
 }
 
 // Every parameter goes to the preset's value (its default where the preset says nothing).
-void FathomProcessor::applyPreset(int index, bool flush) {
-    const auto& list = fathom::presets::all();
+void SiltProcessor::applyPreset(int index, bool flush) {
+    const auto& list = silt::presets::all();
     if (index < 0 || index >= int(list.size())) return;
-    const auto values = fathom::presets::valuesOf(list[size_t(index)]);
-    const auto& specs = fathom::params::all();
+    const auto values = silt::presets::valuesOf(list[size_t(index)]);
+    const auto& specs = silt::params::all();
     for (size_t i = 0; i < specs.size(); ++i)
         if (auto* param = apvts.getParameter(specs[i].id.c_str())) param->setValueNotifyingHost(param->convertTo0to1(values[i]));
     if (flush) resetEngine();  // the previous preset's tails do not leak into this one
     currentPreset_ = index;
-    juce::MessageManager::callAsync([safe = juce::WeakReference<FathomProcessor>(this)] {
+    juce::MessageManager::callAsync([safe = juce::WeakReference<SiltProcessor>(this)] {
         if (safe != nullptr && safe->onPresetChanged) safe->onPresetChanged();
     });
 }
 
-void FathomProcessor::resetAll() {
+void SiltProcessor::resetAll() {
     for (auto* param : getParameters())
         if (auto* p = dynamic_cast<juce::RangedAudioParameter*>(param)) p->setValueNotifyingHost(p->getDefaultValue());
     resetEngine();
     currentPreset_ = -1;
-    juce::MessageManager::callAsync([safe = juce::WeakReference<FathomProcessor>(this)] {
+    juce::MessageManager::callAsync([safe = juce::WeakReference<SiltProcessor>(this)] {
         if (safe != nullptr && safe->onPresetChanged) safe->onPresetChanged();
     });
 }
 
-void FathomProcessor::getStateInformation(juce::MemoryBlock& destData) {
+void SiltProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts.copyState();
     state.setProperty("version", kStateVersion, nullptr);
     state.setProperty("preset", currentPreset_, nullptr);
@@ -160,7 +162,7 @@ void FathomProcessor::getStateInformation(juce::MemoryBlock& destData) {
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, destData);
 }
 
-void FathomProcessor::setStateInformation(const void* data, int sizeInBytes) {
+void SiltProcessor::setStateInformation(const void* data, int sizeInBytes) {
     auto xml = getXmlFromBinary(data, sizeInBytes);
     if (xml == nullptr || !xml->hasTagName(apvts.state.getType())) return;
     auto state = juce::ValueTree::fromXml(*xml);
@@ -171,9 +173,9 @@ void FathomProcessor::setStateInformation(const void* data, int sizeInBytes) {
     currentPreset_ = int(state.getProperty("preset", -1));
     editorScale = double(state.getProperty("editorScale", 0.0));
     apvts.replaceState(state);
-    juce::MessageManager::callAsync([safe = juce::WeakReference<FathomProcessor>(this)] {
+    juce::MessageManager::callAsync([safe = juce::WeakReference<SiltProcessor>(this)] {
         if (safe != nullptr && safe->onPresetChanged) safe->onPresetChanged();
     });
 }
 
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new FathomProcessor(); }
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new SiltProcessor(); }

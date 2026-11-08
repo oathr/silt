@@ -1,4 +1,4 @@
-// fathom_hosttest <FATHOM.vst3> [--no-timing]
+// silt_hosttest <SILT.vst3> [--no-timing]
 // Loads the VST3 the way a DAW does and stresses it: three sample rates, buffers from 64
 // to 2048 (and odd sizes), random automation, every program, a state round trip, mono
 // input. Fails on NaN / Inf, on a peak over 0 dBFS, on a state that does not come back,
@@ -69,12 +69,59 @@ Result runFor(juce::AudioPluginInstance& p, double seconds, int block, double ra
     return r;
 }
 
+// --compat <old.vst3> <new.vst3>: an older build (e.g. FATHOM, the plugin's first name) and
+// this one must share their VST3 ID, and every state the old one saves (each program, and
+// random settings) must load into the new one with the same values.
+int compat(const char* oldPath, const char* newPath) {
+    juce::AudioPluginFormatManager formats;
+    formats.addFormat(new juce::VST3PluginFormat());
+    juce::VST3PluginFormat vst3;
+    juce::OwnedArray<juce::PluginDescription> a, b;
+    const auto cwd = juce::File::getCurrentWorkingDirectory();
+    vst3.findAllTypesForFile(a, cwd.getChildFile(oldPath).getFullPathName());
+    vst3.findAllTypesForFile(b, cwd.getChildFile(newPath).getFullPathName());
+    if (a.isEmpty() || b.isEmpty()) return std::printf("plugin not found\n"), 2;
+    std::printf("old: %s, id %08x\nnew: %s, id %08x\n", a[0]->name.toRawUTF8(), unsigned(a[0]->uniqueId), b[0]->name.toRawUTF8(), unsigned(b[0]->uniqueId));
+    check(a[0]->uniqueId == b[0]->uniqueId && a[0]->deprecatedUid == b[0]->deprecatedUid, "the VST3 IDs differ: hosts will not find old sessions");
+    juce::String error;
+    auto oldPlugin = formats.createPluginInstance(*a[0], 48000.0, 512, error);
+    auto newPlugin = formats.createPluginInstance(*b[0], 48000.0, 512, error);
+    if (oldPlugin == nullptr || newPlugin == nullptr) return std::printf("cannot load: %s\n", error.toRawUTF8()), 2;
+    const auto oldParams = ownParameters(*oldPlugin), newParams = ownParameters(*newPlugin);
+    check(oldParams.size() == newParams.size(), "parameter count differs");
+    juce::Random rng(77);
+    int states = 0, mismatches = 0;
+    for (int i = 0; i < oldPlugin->getNumPrograms() + 20; ++i) {
+        if (i < oldPlugin->getNumPrograms()) oldPlugin->setCurrentProgram(i);
+        else
+            for (auto* p : oldParams) {
+                const int steps = p->getNumSteps();
+                float v = rng.nextFloat();
+                if (steps > 1 && steps < 100) v = float(juce::roundToInt(v * float(steps - 1))) / float(steps - 1);
+                p->setValue(v);
+            }
+        juce::MemoryBlock state;
+        oldPlugin->getStateInformation(state);
+        newPlugin->setStateInformation(state.getData(), int(state.getSize()));
+        for (size_t k = 0; k < std::min(oldParams.size(), newParams.size()); ++k)
+            if (std::abs(oldParams[k]->getValue() - newParams[k]->getValue()) > 1.0e-4f) {
+                if (mismatches++ < 5) std::printf("  state %d: %s %.4f -> %.4f\n", i, oldParams[k]->getName(32).toRawUTF8(), oldParams[k]->getValue(), newParams[k]->getValue());
+            }
+        ++states;
+    }
+    check(mismatches == 0, juce::String(mismatches) + " values changed");
+    std::printf("%d old states loaded into the new build\n", states);
+    std::printf(failures == 0 ? "\nALL PASSED\n" : "\n%d FAILURE(S)\n", failures);
+    return failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI juce;
+    if (argc >= 4 && juce::String(argv[1]) == "--compat") return compat(argv[2], argv[3]);
     if (argc < 2) {
-        std::printf("usage: fathom_hosttest <FATHOM.vst3> [--no-timing]\n");
+        std::printf("usage: silt_hosttest <SILT.vst3> [--no-timing] | --compat <old.vst3> <new.vst3>\n");
         return 2;
     }
     const bool timing = !(argc > 2 && juce::String(argv[2]) == "--no-timing");
