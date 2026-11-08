@@ -41,7 +41,11 @@ jobs:
         run: cmake --build build --config Release --target Silt_VST3 silt_hosttest
       - name: Host stress test
         run: build/plugin/silt_hosttest_artefacts/Release/silt_hosttest build/plugin/Silt_artefacts/Release/VST3/SILT.vst3 --no-timing
+      # Zipped here with ditto: the bundle keeps its executable bit and signature
+      # (a zip made on Windows would lose them and the plugin would not load).
+      - name: Zip
+        run: ditto -c -k --keepParent build/plugin/Silt_artefacts/Release/VST3/SILT.vst3 SILT-VST3-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
           name: SILT-VST3-macOS
-          path: build/plugin/Silt_artefacts/Release/VST3/SILT.vst3
+          path: SILT-VST3-macOS.zip
