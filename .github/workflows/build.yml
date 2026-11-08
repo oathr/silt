@@ -1,0 +1,47 @@
+# Builds the VST3 on Windows and macOS, runs the host stress test,
+# and uploads the plugins as downloadable artifacts.
+name: build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # WebView2 SDK, linked statically: nothing extra to install on the user's PC
+      # (the WebView2 runtime ships with Windows 10/11).
+      - name: WebView2 SDK
+        run: nuget install Microsoft.Web.WebView2 -OutputDirectory "${{ runner.temp }}\webview2"
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DFATHOM_BUILD_RENDER=OFF -DJUCE_WEBVIEW2_PACKAGE_LOCATION="${{ runner.temp }}\webview2"
+
+      - name: Build
+        run: cmake --build build --config Release --target Fathom_VST3 fathom_hosttest --parallel
+
+      - name: Host stress test
+        run: build\plugin\fathom_hosttest_artefacts\Release\fathom_hosttest.exe build\plugin\Fathom_artefacts\Release\VST3\FATHOM.vst3 --no-timing
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FATHOM-VST3-Windows
+          path: build/plugin/Fathom_artefacts/Release/VST3/FATHOM.vst3
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure
+        run: cmake -S . -B build -G Xcode -DFATHOM_BUILD_RENDER=OFF -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+      - name: Build
+        run: cmake --build build --config Release --target Fathom_VST3 fathom_hosttest
+      - name: Host stress test
+        run: build/plugin/fathom_hosttest_artefacts/Release/fathom_hosttest build/plugin/Fathom_artefacts/Release/VST3/FATHOM.vst3 --no-timing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FATHOM-VST3-macOS
+          path: build/plugin/Fathom_artefacts/Release/VST3/FATHOM.vst3

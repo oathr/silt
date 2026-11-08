@@ -1,0 +1,7 @@
+build/
+build-*/
+renders/
+.DS_Store
+
+# Local working notes, not part of the plugin
+CLAUDE.md

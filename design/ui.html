@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FATHOM</title>
+<style>
+/* FATHOM: the look of the old flow-visualisation plates (smoke filaments around a body,
+   silver on black, grain, a scale bar, a scribbled plate number). Monochrome on purpose. */
+:root {
+  --black: #050505;
+  --ink: #ecebe5;
+  --dim: rgba(236, 235, 229, 0.55);
+  --faint: rgba(236, 235, 229, 0.28);
+  --line: rgba(236, 235, 229, 0.14);
+  --line-strong: rgba(236, 235, 229, 0.32);
+  --type: "Bahnschrift", "DIN Condensed", "Arial Narrow", sans-serif;
+  --mono: "Consolas", "Cascadia Mono", "Courier New", monospace;
+  --hand: "Segoe Script", "Bradley Hand", "Georgia", cursive;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--black); }
+body { color: var(--ink); font-family: var(--type); -webkit-font-smoothing: antialiased; user-select: none; }
+#page { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; transform-origin: 0 0; background: var(--black); }
+#grain { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0.06; mix-blend-mode: screen; z-index: 30; }
+
+/* ---------- the plate ---------- */
+#plate { position: absolute; left: 14px; top: 14px; width: 846px; height: 532px; }
+#plate canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* ---------- right column ---------- */
+#side { position: absolute; left: 876px; top: 14px; width: 390px; height: 532px; display: flex; flex-direction: column; }
+.brand { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--line-strong); padding-bottom: 8px; }
+.brand h1 { font-weight: 300; font-size: 34px; letter-spacing: 0.42em; line-height: 1; }
+.brand .sub { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; color: var(--dim); text-align: right; line-height: 1.5; }
+.preset { position: relative; padding: 10px 0 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.preset .k { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--dim); }
+.preset .name { font-size: 21px; font-weight: 400; letter-spacing: 0.06em; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 70px; }
+.preset .note { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 3px; line-height: 1.35; height: 27px; overflow: hidden; padding-right: 70px; }
+.preset .arrows { position: absolute; right: 0; top: 14px; display: flex; gap: 4px; }
+.preset .arrows button { width: 28px; height: 44px; background: none; border: 1px solid var(--line-strong); color: var(--ink); font-family: var(--mono); font-size: 14px; cursor: pointer; }
+.preset .arrows button:hover { background: var(--ink); color: var(--black); }
+#menu { display: none; position: absolute; left: 876px; top: 112px; width: 390px; max-height: 660px; overflow-y: auto; background: #0a0a09; border: 1px solid var(--line-strong); z-index: 20; padding: 6px 0; }
+#menu.open { display: block; }
+#menu .cat { font-family: var(--mono); font-size: 9px; letter-spacing: 0.24em; color: var(--dim); padding: 10px 14px 4px; }
+#menu .item { padding: 5px 14px; cursor: pointer; }
+#menu .item:hover { background: rgba(236,235,229,0.08); }
+#menu .item.on { background: var(--ink); color: var(--black); }
+#menu .item .n { font-size: 15px; letter-spacing: 0.04em; }
+#menu .item .d { font-family: var(--mono); font-size: 9.5px; opacity: 0.6; margin-top: 1px; }
+.hero { padding-top: 11px; cursor: ew-resize; }
+.hero .top { display: flex; justify-content: space-between; align-items: baseline; }
+.hero .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.24em; color: var(--dim); }
+.hero .v { font-size: 20px; font-weight: 400; letter-spacing: 0.04em; }
+.hero canvas { display: block; width: 390px; height: 30px; margin-top: 5px; }
+.levels { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.panelHead { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; }
+.panelHead .t { font-family: var(--mono); font-size: 9px; letter-spacing: 0.24em; color: var(--dim); }
+.panelHead .s { font-family: var(--mono); font-size: 9px; color: var(--faint); }
+#arrivals, #curve { display: block; width: 390px; margin-top: 4px; border: 1px solid var(--line); }
+
+/* ---------- modules ---------- */
+#modules { position: absolute; left: 14px; top: 560px; width: 1252px; height: 228px; display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--line-strong); }
+.card { position: relative; border-right: 1px solid var(--line); padding: 9px 12px 0; }
+.card:last-child { border-right: none; }
+.card.off .ctl, .card.off .chips { opacity: 0.33; }
+.card .head { display: flex; align-items: baseline; gap: 8px; height: 20px; }
+.card .num { font-family: var(--hand); font-size: 12px; color: var(--dim); }
+.card .title { font-size: 14px; font-weight: 400; letter-spacing: 0.3em; flex: 1; }
+.power { width: 34px; height: 16px; border: 1px solid var(--line-strong); background: none; color: var(--dim); font-family: var(--mono); font-size: 9px; cursor: pointer; }
+.power.on { background: var(--ink); border-color: var(--ink); color: var(--black); }
+.chips { display: flex; flex-wrap: wrap; gap: 3px; margin: 7px 0 2px; }
+.chip { flex: 1 0 auto; min-width: 46px; height: 18px; padding: 0 4px; border: 1px solid var(--line-strong); background: none; color: var(--dim); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.04em; cursor: pointer; text-transform: uppercase; }
+.chip:hover { color: var(--ink); border-color: var(--ink); }
+.chip.on { background: var(--ink); border-color: var(--ink); color: var(--black); }
+.ctl { margin-top: 7px; cursor: ew-resize; }
+.ctl .row { display: flex; justify-content: space-between; align-items: baseline; }
+.ctl .lab { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; color: var(--dim); }
+.ctl .val { font-size: 13.5px; letter-spacing: 0.03em; white-space: nowrap; }
+.ctl .track { position: relative; height: 8px; margin-top: 2px; }
+.ctl .track::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: var(--line-strong); }
+.ctl .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%); }
+.ctl .fill { position: absolute; left: 0; top: 3px; height: 3px; background: var(--ink); opacity: 0.85; }
+.ctl .knob { position: absolute; top: -1px; width: 1px; height: 11px; background: var(--ink); }
+.ctl:hover .lab { color: var(--ink); }
+.ctl.drag .fill { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="page">
+  <div id="plate"><canvas id="fluid"></canvas><canvas id="hud"></canvas></div>
+
+  <div id="side">
+    <div class="brand">
+      <h1>FATHOM</h1>
+      <div class="sub">SOUND IN WATER<br>c = 1500 m/s · OATHR</div>
+    </div>
+    <div class="preset" id="presetBox">
+      <div class="k" id="presetCat">PRESET</div>
+      <div class="name" id="presetName">—</div>
+      <div class="note" id="presetNote"></div>
+      <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
+    </div>
+    <div class="hero" id="submergeBox">
+      <div class="top"><span class="k">SUBMERGE</span><span class="v" id="submergeVal">—</span></div>
+      <canvas id="submergeCanvas"></canvas>
+    </div>
+    <div class="hero" id="muffleBox">
+      <div class="top"><span class="k">MUFFLE</span><span class="v" id="muffleVal">—</span></div>
+      <canvas id="muffleCanvas"></canvas>
+    </div>
+    <div class="levels">
+      <div class="hero" id="dryBox"><div class="top"><span class="k">DRY</span><span class="v" id="dryVal" style="font-size:16px">—</span></div><canvas id="dryCanvas" style="width:186px;height:16px"></canvas></div>
+      <div class="hero" id="wetBox"><div class="top"><span class="k">WET</span><span class="v" id="wetVal" style="font-size:16px">—</span></div><canvas id="wetCanvas" style="width:186px;height:16px"></canvas></div>
+    </div>
+    <div class="panelHead"><span class="t">ARRIVALS</span><span class="s" id="arrivalsInfo">—</span></div>
+    <canvas id="arrivals" height="74"></canvas>
+    <div class="panelHead"><span class="t">WHAT THE EAR KEEPS</span><span class="s" id="curveInfo">—</span></div>
+    <canvas id="curve" height="74"></canvas>
+  </div>
+  <div id="menu"></div>
+  <div id="modules"></div>
+  <canvas id="grain"></canvas>
+</div>
+
+<script type="module">
+// ======================================================================================
+// Parameters: layout, and a copy of the units for the plate and the browser preview.
+// Keep in step with plugin/Source/Params.h. In the plugin, labels come from the host.
+// ======================================================================================
+const U = {
+  distance: t => 0.3 * Math.pow(33333.3, t),
+  depth: t => 0.1 * Math.pow(110000, t),
+  water: t => Math.pow(11000, t),
+  waves: t => 1.5 * t * t,
+  sway: t => 4 * t * t,
+  echo: t => 5 * Math.pow(600, t),
+  tDistance: m => Math.log(m / 0.3) / Math.log(33333.3),
+  tDepth: m => Math.log(m / 0.1) / Math.log(110000),
+  tWater: m => Math.log(m) / Math.log(11000),
+  muffleHz: t => t <= 0 ? 0 : 20000 * Math.pow(90 / 20000, Math.pow(t, 0.75)),
+};
+const metres = m => m < 10 ? m.toFixed(1) + ' m' : m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(2) + ' km';
+const hz = f => f < 1000 ? Math.round(f) + ' Hz' : (f / 1000).toFixed(1) + ' kHz';
+const lvl = t => t <= 0 ? 'off' : ((-48 + 60 * t) >= 0 ? '+' : '') + (-48 + 60 * t).toFixed(1) + ' dB';
+const pc = t => Math.round(100 * t) + ' %';
+const bip = t => { const d = (2 * t - 1) * 12; return (d >= 0 ? '+' : '') + d.toFixed(1) + ' dB'; };
+const SPECS = {
+  submerge: { kind: 'slider', def: 1, text: pc },
+  muffle: { kind: 'slider', def: 0, text: t => t <= 0 ? 'real water' : hz(U.muffleHz(t)) },
+  dry: { kind: 'slider', def: 0, text: lvl },  // parallel dry, on top of SUBMERGE
+  wet: { kind: 'slider', def: 0.8, text: lvl },
+  distance: { kind: 'slider', def: U.tDistance(4), text: t => metres(U.distance(t)), label: 'DISTANCE' },
+  src_depth: { kind: 'slider', def: U.tDepth(3), text: t => metres(U.depth(t)), label: 'SOURCE DEPTH' },
+  lis_depth: { kind: 'slider', def: U.tDepth(4), text: t => metres(U.depth(t)), label: 'EAR DEPTH' },
+  water_depth: { kind: 'slider', def: U.tWater(12), text: t => metres(U.water(t)), label: 'SEA DEPTH' },
+  sway: { kind: 'slider', def: Math.sqrt(0.3 / 4), text: t => t <= 0 ? 'still' : U.sway(t).toFixed(2) + ' m', label: 'SWAY' },
+  path_on: { kind: 'toggle', def: 1 },
+  bottom: { kind: 'choice', def: 1, choices: ['Mud', 'Sand', 'Gravel', 'Rock', 'Reef'] },
+  waves: { kind: 'slider', def: Math.sqrt(0.1), text: t => t <= 0 ? 'flat' : U.waves(t).toFixed(2) + ' m', label: 'WAVES' },
+  reflections: { kind: 'slider', def: 0.5, text: t => 'x' + (2 * t).toFixed(2), label: 'REFLECTIONS' },
+  echo_on: { kind: 'toggle', def: 0 },
+  echo_wall: { kind: 'choice', def: 0, choices: ['Cliff', 'Reef', 'Hull', 'Ice'] },
+  echo_dist: { kind: 'slider', def: Math.log(12) / Math.log(600), text: t => metres(U.echo(t)) + ', ' + Math.round(2000 * U.echo(t) / 1500) + ' ms', label: 'WALL DISTANCE' },
+  echo_fb: { kind: 'slider', def: 0.3, text: pc, label: 'FEEDBACK' },
+  echo_level: { kind: 'slider', def: 40 / 60, text: lvl, label: 'LEVEL' },
+  water_on: { kind: 'toggle', def: 1 },
+  space: { kind: 'choice', def: 1, choices: ['Open sea', 'Bay', 'Pool', 'Cave', 'Wreck', 'Tank', 'Abyss'] },
+  size: { kind: 'slider', def: 0.5, text: t => metres(2 * Math.pow(100, t)), label: 'SIZE' },
+  decay: { kind: 'slider', def: Math.log(10) / Math.log(100), text: t => (0.2 * Math.pow(100, t)).toFixed(1) + ' s', label: 'DECAY' },
+  tone: { kind: 'slider', def: 0.4, text: pc, label: 'TONE' },
+  water_level: { kind: 'slider', def: 42 / 60, text: lvl, label: 'LEVEL' },
+  ear: { kind: 'choice', def: 1, choices: ['Hydrophone', 'Diver', 'Helmet', 'Cinema'] },
+  ear_amount: { kind: 'slider', def: 0.85, text: pc, label: 'AMOUNT' },
+  clarity: { kind: 'slider', def: 0.2, text: pc, label: 'CLARITY' },
+  width: { kind: 'slider', def: 0.5, text: t => pc(2 * t), label: 'WIDTH' },
+  eq_lowcut: { kind: 'slider', def: 0, text: t => t <= 0 ? 'off' : hz(20 * Math.pow(25, t)), label: 'LOW CUT' },
+  eq_low: { kind: 'slider', def: 0.5, text: bip, label: 'LOW' },
+  eq_mid_freq: { kind: 'slider', def: Math.log(8) / Math.log(80), text: t => hz(100 * Math.pow(80, t)), label: 'MID FREQ' },
+  eq_mid: { kind: 'slider', def: 0.5, text: bip, label: 'MID' },
+  eq_high: { kind: 'slider', def: 0.5, text: bip, label: 'HIGH' },
+};
+const MODULES = [
+  { title: 'SOURCE', ctls: ['distance', 'src_depth', 'lis_depth', 'water_depth', 'sway'] },
+  { title: 'PATHS', power: 'path_on', choice: 'bottom', ctls: ['waves', 'reflections'] },
+  { title: 'ECHO', power: 'echo_on', choice: 'echo_wall', ctls: ['echo_dist', 'echo_fb', 'echo_level'] },
+  { title: 'REVERB', power: 'water_on', choice: 'space', ctls: ['size', 'decay', 'tone', 'water_level'] },
+  { title: 'LISTENER', choice: 'ear', ctls: ['ear_amount', 'clarity', 'width'] },
+  { title: 'EQ', ctls: ['eq_lowcut', 'eq_low', 'eq_mid_freq', 'eq_mid', 'eq_high'] },
+];
+
+// ======================================================================================
+// Bridge to the plugin (JUCE 8 web relays); local values in a browser.
+// ======================================================================================
+const bridge = {
+  juce: null, controls: new Map(), values: new Map(), texts: new Map(), choices: new Map(), listening: new Set(),
+  register(id, apply) {
+    if (!this.controls.has(id)) this.controls.set(id, []);
+    this.controls.get(id).push(apply);
+    if (!this.values.has(id)) this.values.set(id, SPECS[id].def);
+    apply(this.values.get(id));
+    if (this.juce) this.listen(id);
+  },
+  value(id) { return this.values.has(id) ? this.values.get(id) : SPECS[id].def; },
+  text(id) { return this.texts.get(id) ?? SPECS[id].text?.(this.value(id)) ?? ''; },
+  state(id) {
+    const k = SPECS[id].kind, J = this.juce;
+    return k === 'slider' ? J.getSliderState(id) : k === 'toggle' ? J.getToggleState(id) : J.getComboBoxState(id);
+  },
+  set(id, v) {
+    const k = SPECS[id].kind;
+    if (k === 'slider') v = Math.min(1, Math.max(0, v));
+    this.values.set(id, v);
+    if (!this.juce) this.texts.delete(id);
+    this.notify(id);
+    if (!this.juce) return;
+    const st = this.state(id);
+    if (k === 'slider') st.setNormalisedValue(v); else if (k === 'toggle') st.setValue(!!v); else st.setChoiceIndex(v);
+  },
+  drag(id, started) {
+    if (!this.juce || SPECS[id].kind !== 'slider') return;
+    started ? this.state(id).sliderDragStarted() : this.state(id).sliderDragEnded();
+  },
+  notify(id) { for (const f of this.controls.get(id) || []) f(this.value(id)); },
+  listen(id) {
+    if (this.listening.has(id)) return;
+    this.listening.add(id);
+    const k = SPECS[id].kind, st = this.state(id);
+    const update = () => {
+      if (k === 'choice' && !st.properties.choices.length) return;
+      if (k === 'choice') this.choices.set(id, st.properties.choices);
+      this.values.set(id, k === 'slider' ? st.getNormalisedValue() : k === 'toggle' ? (st.getValue() ? 1 : 0) : st.getChoiceIndex());
+      this.notify(id);
+    };
+    st.valueChangedEvent.addListener(update);
+    st.propertiesChangedEvent.addListener(update);
+    update();
+  },
+  connect(J) {
+    this.juce = J;
+    const B = window.__JUCE__.backend;
+    B.addEventListener('fathom_text', t => { for (const id in t) { this.texts.set(id, t[id]); this.notify(id); } });
+    B.addEventListener('fathom_live', l => live.fromHost(l));
+    B.addEventListener('fathom_ear', c => { live.curve = c; });
+    B.addEventListener('fathom_preset', i => presets.show(i));
+    for (const id of Object.keys(SPECS)) this.listen(id);
+    J.getNativeFunction('getPresets')().then(r => { presets.list = r.list; presets.build(); presets.show(r.current); });
+    J.getNativeFunction('ready')();
+  },
+  native(name, ...args) { if (this.juce) this.juce.getNativeFunction(name)(...args); },
+};
+
+// ======================================================================================
+// Controls
+// ======================================================================================
+let zoom = 1, dpr = window.devicePixelRatio || 1;
+// Drag sideways (or up) to move, Shift for fine, double-click for the default, wheel steps.
+function dragValue(el, id, pixels) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('drag');
+    bridge.drag(id, true);
+    let last = { x: e.clientX, y: e.clientY };
+    const move = ev => {
+      const dx = (ev.clientX - last.x) - (ev.clientY - last.y);
+      last = { x: ev.clientX, y: ev.clientY };
+      bridge.set(id, bridge.value(id) + dx / (pixels * zoom) * (ev.shiftKey ? 0.1 : 1));
+    };
+    const up = () => {
+      el.classList.remove('drag');
+      bridge.drag(id, false);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+  });
+  el.addEventListener('dblclick', () => { bridge.drag(id, true); bridge.set(id, SPECS[id].def); bridge.drag(id, false); });
+  el.addEventListener('wheel', e => { e.preventDefault(); bridge.drag(id, true); bridge.set(id, bridge.value(id) - Math.sign(e.deltaY) * (e.shiftKey ? 0.002 : 0.01)); bridge.drag(id, false); }, { passive: false });
+}
+function slider(id, root) {
+  const el = document.createElement('div');
+  el.className = 'ctl';
+  el.innerHTML = `<div class="row"><span class="lab">${SPECS[id].label || id}</span><span class="val"></span></div><div class="track"><div class="ticks"></div><div class="fill"></div><div class="knob"></div></div>`;
+  root.appendChild(el);
+  const val = el.querySelector('.val'), fill = el.querySelector('.fill'), knob = el.querySelector('.knob');
+  bridge.register(id, v => {
+    fill.style.width = (v * 100) + '%';
+    knob.style.left = `calc(${v * 100}% - 0.5px)`;
+    val.textContent = bridge.text(id);
+  });
+  dragValue(el, id, 170);
+}
+function chips(id, root) {
+  const box = document.createElement('div');
+  box.className = 'chips';
+  root.appendChild(box);
+  const buttons = (bridge.choices.get(id) || SPECS[id].choices).map((n, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = n;
+    b.onclick = () => bridge.set(id, i);
+    box.appendChild(b);
+    return b;
+  });
+  bridge.register(id, v => buttons.forEach((b, i) => b.classList.toggle('on', i === Math.round(v))));
+}
+function buildModules() {
+  const root = document.getElementById('modules');
+  const numerals = ['i', 'ii', 'iii', 'iv', 'v', 'vi'];
+  MODULES.forEach((m, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div class="head"><span class="num">${numerals[i]}.</span><span class="title">${m.title}</span></div>`;
+    if (m.power) {
+      const p = document.createElement('button');
+      p.className = 'power';
+      p.onclick = () => bridge.set(m.power, bridge.value(m.power) > 0.5 ? 0 : 1);
+      card.querySelector('.head').appendChild(p);
+      bridge.register(m.power, v => { p.classList.toggle('on', v > 0.5); p.textContent = v > 0.5 ? 'ON' : 'OFF'; card.classList.toggle('off', v < 0.5); });
+    }
+    if (m.choice) chips(m.choice, card);
+    m.ctls.forEach(id => slider(id, card));
+    root.appendChild(card);
+  });
+}
+
+// The big levers: SUBMERGE (lines going from straight to wavy, the water closing over)
+// and MUFFLE (lines blurring into smoke). DRY and WET: plain bars.
+function lever(id, boxId, canvasId, valId, kind) {
+  const box = document.getElementById(boxId), cv = document.getElementById(canvasId), val = document.getElementById(valId);
+  bridge.register(id, () => { val.textContent = bridge.text(id); });
+  dragValue(box, id, kind === 'bar' ? 190 : 330);
+  return t => {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr)) cv.width = Math.round(w * dpr), cv.height = Math.round(h * dpr);
+    const g = cv.getContext('2d'), v = bridge.value(id);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    if (kind === 'bar') {
+      g.fillStyle = 'rgba(236,235,229,0.12)'; g.fillRect(0, h / 2 - 1, w, 1);
+      g.fillStyle = 'rgba(236,235,229,0.85)'; g.fillRect(0, h / 2 - 2, v * w, 3);
+      g.fillRect(v * w - 0.5, 1, 1, h - 2);
+      g.fillStyle = 'rgba(236,235,229,0.4)'; g.fillRect(w * 48 / 60, h - 4, 1, 4);  // 0 dB
+      return;
+    }
+    const lines = 7;
+    for (let k = 0; k < lines; ++k) {
+      const y0 = 3 + (h - 6) * k / (lines - 1);
+      g.beginPath();
+      for (let x = 0; x <= w; x += 3) {
+        const u = x / w, inside = u <= v;
+        let y = y0;
+        if (kind === 'submerge' && inside) y += Math.sin(x * 0.06 + t * 2.2 + k * 0.7) * 2.2 * Math.min(1, (v - u) * 6 + 0.2);
+        if (kind === 'muffle' && inside) y += Math.sin(x * 0.3 + k * 9.1 + t * 1.3) * 1.6 * u;
+        x === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+      }
+      if (kind === 'muffle') g.filter = `blur(${0.3 + 1.6 * v}px)`;
+      g.strokeStyle = `rgba(236,235,229,${0.25 + 0.6 * (kind === 'muffle' ? 1 - 0.5 * v : 1)})`;
+      g.lineWidth = 0.8;
+      g.stroke();
+      g.filter = 'none';
+    }
+    g.fillStyle = 'rgba(236,235,229,0.08)'; g.fillRect(0, 0, v * w, h);
+    g.fillStyle = '#ecebe5'; g.fillRect(v * w - 1, 0, 2, h);
+  };
+}
+
+// ======================================================================================
+// Presets
+// ======================================================================================
+const presets = {
+  list: [], current: 0,
+  build() {
+    const menu = document.getElementById('menu');
+    menu.innerHTML = '';
+    let cat = '';
+    this.list.forEach((p, i) => {
+      if (p.category !== cat) {
+        cat = p.category;
+        const c = document.createElement('div');
+        c.className = 'cat';
+        c.textContent = cat;
+        menu.appendChild(c);
+      }
+      const it = document.createElement('div');
+      it.className = 'item';
+      it.innerHTML = '<div class="n"></div><div class="d"></div>';
+      it.querySelector('.n').textContent = p.name;
+      it.querySelector('.d').textContent = p.note;
+      it.onclick = e => { e.stopPropagation(); this.load(i); menu.classList.remove('open'); };
+      menu.appendChild(it);
+    });
+    const c = document.createElement('div');
+    c.className = 'cat';
+    c.textContent = '—';
+    menu.appendChild(c);
+    const init = document.createElement('div');
+    init.className = 'item';
+    init.innerHTML = '<div class="n">INIT</div><div class="d">Tout aux réglages de départ.</div>';
+    init.onclick = e => { e.stopPropagation(); bridge.native('resetAll'); if (!bridge.juce) this.show(-1); menu.classList.remove('open'); };
+    menu.appendChild(init);
+    this.show(this.current);
+  },
+  show(i) {
+    this.current = i;
+    const p = this.list[i];
+    document.getElementById('presetCat').textContent = p ? `PRESET ${String(i + 1).padStart(2, '0')} · ${p.category}` : 'PRESET';
+    document.getElementById('presetName').textContent = p ? p.name : 'INIT';
+    document.getElementById('presetNote').textContent = p ? p.note : 'Réglages de départ.';
+    [...document.querySelectorAll('#menu .item')].forEach((el, k) => el.classList.toggle('on', k === i));
+  },
+  load(i) {
+    if (!this.list.length) return;
+    i = (i + this.list.length) % this.list.length;
+    if (bridge.juce) bridge.native('loadPreset', i); else this.show(i);
+  },
+};
+document.getElementById('presetBox').addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') document.getElementById('menu').classList.toggle('open'); });
+document.getElementById('prev').onclick = e => { e.stopPropagation(); presets.load(presets.current - 1); };
+document.getElementById('next').onclick = e => { e.stopPropagation(); presets.load(presets.current + 1); };
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#menu') && !e.target.closest('#presetBox')) document.getElementById('menu').classList.remove('open'); });
+
+// ======================================================================================
+// Live state: from the plugin, or simulated in a browser.
+// ======================================================================================
+const live = {
+  in: 0, out: 0, bands: [0, 0, 0], arrivals: null, absorptionHz: 0, modalHz: 0, echoMs: 0, curve: null, cpu: null, sampleRate: 48000,
+  fromHost(l) {
+    this.in = l.in; this.out = l.out; this.bands = l.bands; this.arrivals = l.arrivals;
+    this.absorptionHz = l.absorptionHz; this.modalHz = l.modalHz; this.echoMs = l.echoMs;
+    if (l.cpu !== undefined) { this.cpu = l.cpu; this.sampleRate = l.sampleRate; }
+  },
+  simulate(t) {
+    const beat = Math.pow(Math.max(0, Math.sin(t * 1.9)), 8) + 0.3 * Math.max(0, Math.sin(t * 4.7 + 1));
+    this.in = 0.12 + 0.55 * beat;
+    this.out = this.in * 0.8;
+    this.bands = [0.1 + 0.2 * beat, 0.06 + 0.1 * Math.max(0, Math.sin(t * 0.7)), 0.03 + 0.06 * beat];
+  },
+};
+
+function geometry() {
+  const H = U.water(bridge.value('water_depth'));
+  const m = Math.min(0.05, 0.25 * H);
+  return {
+    r: U.distance(bridge.value('distance')),
+    zs: Math.min(H - m, Math.max(m, U.depth(bridge.value('src_depth')))),
+    zr: Math.min(H - m, Math.max(m, U.depth(bridge.value('lis_depth')))),
+    H, waves: U.waves(bridge.value('waves')), sway: U.sway(bridge.value('sway')),
+    bottom: Math.round(bridge.value('bottom')), on: bridge.value('path_on') > 0.5,
+  };
+}
+const BEDS = [
+  { name: 'MUD', rho: 1.55, c: 1475, loss: 0.8 }, { name: 'SAND', rho: 2.05, c: 1725, loss: 0.88 }, { name: 'GRAVEL', rho: 2.1, c: 1850, loss: 0.85 },
+  { name: 'ROCK', rho: 2.6, c: 3500, loss: 0.95 }, { name: 'REEF', rho: 2.2, c: 2600, loss: 0.78 },
+];
+// The image method (a copy of multipath.h), for drawing the paths.
+function rays(G) {
+  const out = [], bed = BEDS[G.bottom], r0 = Math.hypot(G.r, G.zs - G.zr);
+  for (let i = 0; i < 48; ++i) {
+    const f = i % 4, o = Math.floor(i / 4);
+    const ns = f === 0 ? o : f === 1 ? o + 1 : f === 2 ? o : o + 1, nb = f === 0 ? o : f === 1 ? o : o + 1;
+    const zi = f === 0 ? G.zs + 2 * o * G.H : f === 1 ? -G.zs - 2 * o * G.H : f === 2 ? 2 * (o + 1) * G.H - G.zs : -(2 * (o + 1) * G.H - G.zs);
+    const v = Math.abs(zi - G.zr), len = Math.hypot(G.r, v), s = v / len;
+    const n = 1500 / bed.c, under = n * n - (1 - s * s);
+    let rb = bed.loss;
+    if (under > 0) { const z = Math.sqrt(under), ms = bed.rho * s; rb = bed.loss * (ms - z) / (ms + z); }
+    let g = r0 / len * Math.pow(rb, nb) * (ns % 2 ? -1 : 1) * Math.exp(-ns * 3 * G.waves * s);
+    if (i > 0 && !G.on) g = 0;
+    if ((len - r0) / 1500 > 2.1) g = 0;
+    out.push({ zi, ns, nb, g, ms: (len - r0) / 1.5 });
+  }
+  return out;
+}
+
+// ======================================================================================
+// The plate. Air on top, the water column, the floor; depth on a log scale so 3 m and
+// 11 km both fit; the ear on the left, the source to its right at a log distance. The
+// current runs from the source to the ear: the sound's way.
+// ======================================================================================
+const P = { w: 846, h: 532, x0: 26, x1: 822, top: 22, surf: 70, floor: 470, bottom: 512 };
+const depthFrac = (z, H) => Math.log(1 + z) / Math.log(1 + H);
+const yOf = (z, G) => P.surf + depthFrac(z, G.H) * (P.floor - P.surf);
+const zOf = (y, G) => Math.pow(1 + G.H, Math.max(0, Math.min(1, (y - P.surf) / (P.floor - P.surf)))) - 1;
+const earX = () => P.x0 + 0.13 * (P.x1 - P.x0);
+const xOfR = r => P.x0 + (0.25 + 0.68 * Math.max(0, Math.min(1, Math.log(r / 0.3) / Math.log(33333.3)))) * (P.x1 - P.x0);
+
+// ---------- stable fluids (Stam 1999) on WebGL2, drawn as smoke filaments ----------
+const fluid = (() => {
+  const canvas = document.getElementById('fluid');
+  const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+  if (!gl || !gl.getExtension('EXT_color_buffer_float')) return null;
+  const SW = 240, SH = 116, DW = 960, DH = 464;  // the water region, between surface and floor
+  const vs = `#version 300 es
+    in vec2 aPos; out vec2 vUv; out vec2 vL; out vec2 vR; out vec2 vT; out vec2 vB; uniform vec2 texel;
+    void main() { vUv = aPos * 0.5 + 0.5; vL = vUv - vec2(texel.x, 0.0); vR = vUv + vec2(texel.x, 0.0);
+      vT = vUv + vec2(0.0, texel.y); vB = vUv - vec2(0.0, texel.y); gl_Position = vec4(aPos, 0.0, 1.0); }`;
+  const head = `#version 300 es
+    precision highp float; precision highp sampler2D;
+    in vec2 vUv; in vec2 vL; in vec2 vR; in vec2 vT; in vec2 vB; out vec4 o;
+    uniform vec2 srcPos; uniform vec2 earPos; uniform float srcR; uniform float earR; uniform float aspect;
+    float solid(vec2 p) { vec2 a = (p - srcPos) * vec2(aspect, 1.0), b = (p - earPos) * vec2(aspect, 1.0);
+      return (length(a) < srcR || length(b) < earR) ? 1.0 : 0.0; }
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    // The steady current: a uniform flow from right to left around the two bodies
+    // (potential flow past a cylinder, the two disturbances added). The simulated field
+    // only carries what disturbs it: waves, the wake, the sound's vortices.
+    uniform float speed;
+    vec2 around(vec2 uv, vec2 c, float a) {
+      vec2 p = (uv - c) * vec2(aspect, 1.0); float r2 = max(dot(p, p), a * a * 0.6);
+      return vec2(a * a * (p.x * p.x - p.y * p.y) / (r2 * r2), 2.0 * a * a * p.x * p.y / (r2 * r2)); }
+    vec2 baseFlow(vec2 uv) { return -speed * (vec2(1.0, 0.0) - around(uv, srcPos, srcR) - around(uv, earPos, earR)); }`;
+  const src = {
+    advect: `${head} uniform sampler2D uVel; uniform sampler2D uSrc; uniform vec2 simTexel; uniform float dt; uniform float keep;
+      void main() { vec2 c = vUv - dt * (texture(uVel, vUv).xy + baseFlow(vUv)) * simTexel; o = keep * texture(uSrc, c) * (1.0 - solid(vUv)); }`,
+    // The current enters on the right (the source's side) and runs left; waves rock the
+    // water near the surface; the sound sheds vortices behind the source.
+    force: `${head} uniform sampler2D uVel; uniform float dt; uniform float waves; uniform float time; uniform float shed;
+      void main() {
+        vec2 v = texture(uVel, vUv).xy;
+        v *= 1.0 - smoothstep(0.96, 1.0, vUv.x);  // undisturbed where the current comes in
+        float nearSurface = exp(-(1.0 - vUv.y) * 7.0);
+        v.y += waves * nearSurface * sin(vUv.x * 18.0 - time * 1.7) * 60.0 * dt;
+        v.y += waves * 0.5 * sin(vUv.x * 7.0 + time * 0.6) * nearSurface * 20.0 * dt;
+        vec2 d = (vUv - srcPos - vec2(-srcR * 1.6 / aspect, 0.0)) * vec2(aspect, 1.0);
+        v.y += shed * sin(time * 5.0) * exp(-dot(d, d) / (srcR * srcR * 1.2)) * 900.0 * dt;
+        v *= 1.0 - solid(vUv);
+        o = vec4(v, 0.0, 1.0); }`,
+    curl: `${head} uniform sampler2D uVel;
+      void main() { float L = texture(uVel, vL).y, R = texture(uVel, vR).y, T = texture(uVel, vT).x, B = texture(uVel, vB).x; o = vec4(0.5 * (R - L - T + B), 0, 0, 1); }`,
+    vorticity: `${head} uniform sampler2D uVel; uniform sampler2D uCurl; uniform float curl; uniform float dt;
+      void main() { float L = texture(uCurl, vL).x, R = texture(uCurl, vR).x, T = texture(uCurl, vT).x, B = texture(uCurl, vB).x, C = texture(uCurl, vUv).x;
+        vec2 f = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L)); f /= length(f) + 0.0001; f *= curl * C; f.y *= -1.0;
+        vec2 v = texture(uVel, vUv).xy + f * dt; o = vec4(clamp(v, -400.0, 400.0) * (1.0 - solid(vUv)), 0, 1); }`,
+    divergence: `${head} uniform sampler2D uVel;
+      void main() { float L = texture(uVel, vL).x, R = texture(uVel, vR).x, T = texture(uVel, vT).y, B = texture(uVel, vB).y;
+        if (vT.y > 1.0) T = -texture(uVel, vUv).y; if (vB.y < 0.0) B = -texture(uVel, vUv).y;
+        o = vec4(0.5 * (R - L + T - B), 0, 0, 1); }`,
+    pressure: `${head} uniform sampler2D uP; uniform sampler2D uDiv;
+      void main() { float L = texture(uP, vL).x, R = texture(uP, vR).x, T = texture(uP, vT).x, B = texture(uP, vB).x;
+        if (vR.x > 1.0) R = 0.0; if (vL.x < 0.0) L = 0.0;
+        o = vec4((L + R + B + T - texture(uDiv, vUv).x) * 0.25, 0, 0, 1); }`,
+    gradient: `${head} uniform sampler2D uP; uniform sampler2D uVel;
+      void main() { float L = texture(uP, vL).x, R = texture(uP, vR).x, T = texture(uP, vT).x, B = texture(uP, vB).x;
+        vec2 v = texture(uVel, vUv).xy - vec2(R - L, T - B); o = vec4(v * (1.0 - solid(vUv)), 0, 1); }`,
+    scale: `${head} uniform sampler2D uSrc; uniform float k; void main() { o = k * texture(uSrc, vUv); }`,
+    inject: `${head} uniform sampler2D uDye; uniform float lines; uniform float time; uniform float specks;
+      void main() {
+        vec4 d = texture(uDye, vUv);
+        if (vUv.x > 0.992) {
+          float s = abs(fract(vUv.y * lines) - 0.5);
+          d.r = smoothstep(0.11, 0.0, s) * 1.3;
+          float h = hash(vec2(floor(vUv.y * 460.0), floor(time * 60.0)));
+          d.g = h > 1.0 - specks ? 1.0 : d.g * 0.9;
+        }
+        o = d; }`,
+    display: `${head} uniform sampler2D uDye; uniform float time; uniform float blur; uniform float glow; uniform vec2 dyeTexel; uniform float exposure;
+      void main() {
+        vec2 uv = vUv;
+        float r = 0.0, g = 0.0, wsum = 0.0;
+        for (int i = -2; i <= 2; ++i) for (int j = -2; j <= 2; ++j) {
+          vec2 off = vec2(float(i), float(j)) * dyeTexel * blur;
+          float w = exp(-float(i * i + j * j) * 0.45);
+          vec4 s = texture(uDye, uv + off); r += s.r * w; g += s.g * w; wsum += w; }
+        r /= wsum; g /= wsum;
+        float sharp = texture(uDye, uv).r;
+        float filament = mix(sharp, r, clamp(blur / 3.0, 0.0, 1.0));
+        float v = 1.0 - exp(-filament * 1.7 * exposure);
+        v += 0.25 * r * glow;
+        v += smoothstep(0.35, 0.9, g) * 0.9;
+        float blotch = 0.5 + 0.5 * sin(uv.x * 3.1 + 1.3) * sin(uv.y * 2.3 + 0.4 + time * 0.02);
+        vec3 base = vec3(0.03, 0.03, 0.028) + blotch * 0.025;
+        vec3 col = base + vec3(0.93, 0.92, 0.88) * v;
+        col *= 0.92 + 0.08 * hash(gl_FragCoord.xy + floor(time * 24.0));
+        o = vec4(col * (1.0 - solid(uv)), 1.0); }`,
+  };
+  const compile = (type, s) => { const sh = gl.createShader(type); gl.shaderSource(sh, s); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
+  const vsh = compile(gl.VERTEX_SHADER, vs);
+  const prog = {};
+  for (const k in src) {
+    const p = gl.createProgram();
+    gl.attachShader(p, vsh); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, src[k]));
+    gl.bindAttribLocation(p, 0, 'aPos'); gl.linkProgram(p);
+    const u = {};
+    for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < n; ++i) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
+    prog[k] = { p, u };
+  }
+  const quad = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const target = (w, h) => {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    return { tex, fbo, w, h };
+  };
+  const double = (w, h) => { let a = target(w, h), b = target(w, h); return { get read() { return a; }, get write() { return b; }, swap() { [a, b] = [b, a]; } }; };
+  const vel = double(SW, SH), dye = double(DW, DH), pres = double(SW, SH), div = target(SW, SH), curlT = target(SW, SH);
+  let common = {};
+  const run = (name, out, uniforms, viewport) => {
+    const { p, u } = prog[name];
+    gl.useProgram(p);
+    let unit = 0;
+    const all = Object.assign({}, common, uniforms);
+    for (const k in all) {
+      if (!(k in u)) continue;
+      const v = all[k];
+      if (v && v.tex) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, v.tex); gl.uniform1i(u[k], unit++); }
+      else if (Array.isArray(v)) gl.uniform2fv(u[k], v);
+      else gl.uniform1f(u[k], v);
+    }
+    if (out) { gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo); gl.viewport(0, 0, out.w, out.h); }
+    else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(...viewport); }
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  };
+  const simTexel = [1 / SW, 1 / SH], dyeTexel = [1 / DW, 1 / DH];
+  return {
+    step(dt, s) {
+      common = { srcPos: s.srcPos, earPos: s.earPos, srcR: s.srcR, earR: s.earR, aspect: s.aspect, speed: s.speed };
+      const T = { texel: simTexel };
+      run('force', vel.write, { ...T, uVel: vel.read, dt, waves: s.waves, time: s.time, shed: s.shed }); vel.swap();
+      run('curl', curlT, { ...T, uVel: vel.read });
+      run('vorticity', vel.write, { ...T, uVel: vel.read, uCurl: curlT, curl: s.curl, dt }); vel.swap();
+      run('divergence', div, { ...T, uVel: vel.read });
+      run('scale', pres.write, { ...T, uSrc: pres.read, k: 0.8 }); pres.swap();
+      for (let i = 0; i < 20; ++i) { run('pressure', pres.write, { ...T, uP: pres.read, uDiv: div }); pres.swap(); }
+      run('gradient', vel.write, { ...T, uP: pres.read, uVel: vel.read }); vel.swap();
+      run('advect', vel.write, { ...T, uVel: vel.read, uSrc: vel.read, simTexel, dt, keep: 0.992 }); vel.swap();
+      run('inject', dye.write, { texel: dyeTexel, uDye: dye.read, lines: s.lines, time: s.time, specks: 0.035 }); dye.swap();
+      run('advect', dye.write, { texel: dyeTexel, uVel: vel.read, uSrc: dye.read, simTexel, dt, keep: s.keep }); dye.swap();
+    },
+    draw(s, rect) {
+      const w = Math.round(P.w * dpr), h = Math.round(P.h * dpr);
+      if (canvas.width !== w || canvas.height !== h) canvas.width = w, canvas.height = h;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, w, h);
+      gl.clearColor(0.02, 0.02, 0.018, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      const vx = rect.x * dpr, vy = (P.h - rect.y - rect.h) * dpr;
+      run('display', null, { texel: dyeTexel, dyeTexel, uDye: dye.read, time: s.time, blur: s.blur, glow: s.glow, exposure: s.exposure }, [vx, vy, rect.w * dpr, rect.h * dpr]);
+    },
+  };
+})();
+
+// ---------- the HUD over the plate ----------
+const sway = { t: 0 };
+function drawPlate(t, dt) {
+  const cv = document.getElementById('hud');
+  if (cv.width !== Math.round(P.w * dpr)) cv.width = Math.round(P.w * dpr), cv.height = Math.round(P.h * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, P.w, P.h);
+  const G = geometry();
+  const W = P.x1 - P.x0;
+
+  if (!fluid) {
+    g.fillStyle = '#0d0d0c'; g.fillRect(P.x0, P.surf, W, P.floor - P.surf);
+    g.strokeStyle = 'rgba(236,235,229,0.5)';
+    for (let y = P.surf + 8; y < P.floor; y += 12) { g.beginPath(); g.moveTo(P.x0, y); g.lineTo(P.x1, y); g.stroke(); }
+  }
+
+  // Air: a dull band with the surface's moving edge.
+  g.fillStyle = '#080807';
+  g.fillRect(P.x0, P.top, W, P.surf - P.top);
+  const amp = Math.min(6, 0.8 + G.waves * 7);
+  g.beginPath();
+  for (let x = P.x0; x <= P.x1; x += 3) {
+    const y = P.surf + Math.sin(x * 0.03 + t * 1.1) * amp * 0.5 + Math.sin(x * 0.09 - t * 2.3) * amp * 0.25 * Math.min(1, G.waves * 3) + Math.sin(x * 0.008 + t * 0.4) * amp * 0.35;
+    x === P.x0 ? g.moveTo(x, y) : g.lineTo(x, y);
+  }
+  g.strokeStyle = 'rgba(236,235,229,0.85)'; g.lineWidth = 1.2; g.stroke();
+  g.font = '9px Consolas, monospace'; g.fillStyle = 'rgba(236,235,229,0.45)';
+  g.fillText('AIR', P.x0 + 30, P.top + 16);
+  g.fillText(`SURFACE · R = −1 · WAVES ${G.waves.toFixed(2)} m`, P.x0 + 30, P.surf - 10);
+
+  // Floor: grainy sediment.
+  g.fillStyle = '#090908'; g.fillRect(P.x0, P.floor, W, P.bottom - P.floor);
+  for (let i = 0; i < 900; ++i) {
+    const x = P.x0 + (i * 97.31) % W, y = P.floor + 3 + (i * 41.7) % (P.bottom - P.floor - 4);
+    g.fillStyle = `rgba(236,235,229,${0.08 + (i % 7) * 0.025})`;
+    g.fillRect(x, y, G.bottom >= 2 ? 1.6 : 1, G.bottom >= 2 ? 1.6 : 1);
+  }
+  g.strokeStyle = 'rgba(236,235,229,0.75)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(P.x0, P.floor); g.lineTo(P.x1, P.floor); g.stroke();
+  const bed = BEDS[G.bottom];
+  g.fillStyle = 'rgba(236,235,229,0.5)';
+  g.fillText(`FLOOR · ${bed.name} · ρ ${bed.rho} · c ${bed.c} m/s · ${metres(G.H)} DOWN`, P.x0 + 30, P.floor + 16);
+
+  // The scale bar, as on the old plates: a depth ruler on a log scale.
+  g.fillStyle = 'rgba(236,235,229,0.9)';
+  g.fillRect(P.x0 + 8, P.surf, 2, P.floor - P.surf);
+  const marks = [1, 10, 100, 1000, 10000].filter(m => m < G.H * 0.95);
+  for (const m of [0, ...marks, G.H]) {
+    const y = yOf(m, G);
+    g.fillStyle = 'rgba(236,235,229,0.9)';
+    g.fillRect(P.x0 + 4, y - 0.5, 10, 1.4);
+    g.fillStyle = 'rgba(236,235,229,0.55)';
+    g.fillText(m === 0 ? '0' : metres(m), P.x0 + 16, y + 3);
+  }
+  g.fillStyle = 'rgba(236,235,229,0.4)';
+  for (const m of [1, 10, 100, 1000, 10000]) { const x = xOfR(m); g.fillRect(x, P.floor - 5, 1, 5); g.fillText(m >= 1000 ? m / 1000 + ' km' : m + ' m', x + 3, P.floor - 6); }
+
+  // Source and ear (SWAY wanders the source, as in the engine).
+  sway.t += dt;
+  const sx = xOfR(Math.max(0.3, G.r + G.sway * (0.7 * Math.sin(sway.t * 0.44) + 0.3 * Math.sin(sway.t * 0.17 + 1))));
+  const sy = yOf(Math.min(G.H, Math.max(0, G.zs + G.sway * 0.5 * Math.sin(sway.t * 0.31 + 2))), G);
+  const ex = earX(), ey = yOf(G.zr, G);
+
+  // The echo's wall, far right, when it is on.
+  if (bridge.value('echo_on') > 0.5) {
+    const walls = bridge.choices.get('echo_wall') || SPECS.echo_wall.choices;
+    const wx = P.x1 - 10;
+    g.fillStyle = 'rgba(236,235,229,0.12)'; g.fillRect(wx, P.surf, 10, P.floor - P.surf);
+    g.strokeStyle = 'rgba(236,235,229,0.5)';
+    for (let y = P.surf; y < P.floor; y += 6) { g.beginPath(); g.moveTo(wx, y + 6); g.lineTo(wx + 10, y); g.stroke(); }
+    g.save(); g.translate(wx - 6, P.floor - 8); g.rotate(-Math.PI / 2);
+    g.fillStyle = 'rgba(236,235,229,0.6)';
+    g.fillText(`${(walls[Math.round(bridge.value('echo_wall'))] || '').toUpperCase()} · ${bridge.text('echo_dist')}`, 0, 0);
+    g.restore();
+  }
+
+  // The paths, faint and dotted: folded images of the source.
+  const list = rays(G), top = Math.max(...list.map(p => Math.abs(p.g)));
+  for (const p of list) {
+    const a = Math.abs(p.g) / top;
+    if (a < 0.03) continue;
+    g.beginPath();
+    for (let s = 0; s <= 120; ++s) {
+      const u = s / 120;
+      let z = G.zr + (p.zi - G.zr) * u;
+      z = ((z % (2 * G.H)) + 2 * G.H) % (2 * G.H);
+      if (z > G.H) z = 2 * G.H - z;
+      const x = ex + (sx - ex) * u, y = yOf(z, G);
+      s === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    const direct = p.ns === 0 && p.nb === 0;
+    g.setLineDash(direct ? [] : p.g < 0 ? [1, 4] : [5, 4]);
+    g.strokeStyle = `rgba(236,235,229,${direct ? 0.55 : 0.12 + 0.3 * a})`;
+    g.lineWidth = direct ? 1 : 0.8;
+    g.stroke();
+  }
+  g.setLineDash([]);
+
+  // The two bodies, as on the plates: a dark disc with a bright rim, a caption with a leader.
+  const level = Math.min(1, live.in * 1.5);
+  const body = (x, y, r, kind) => {
+    g.fillStyle = '#060606';
+    g.beginPath(); g.arc(x, y, r, 0, 6.29); g.fill();
+    g.strokeStyle = 'rgba(236,235,229,0.95)'; g.lineWidth = 1.4; g.stroke();
+    g.beginPath(); g.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 3.6, 5.2); g.strokeStyle = 'rgba(236,235,229,0.5)'; g.lineWidth = 1; g.stroke();
+    if (kind === 'src') {
+      g.globalAlpha = 0.15 + 0.6 * level;
+      g.beginPath(); g.arc(x, y, r + 5 + 12 * level, 0, 6.29); g.strokeStyle = '#ecebe5'; g.stroke();
+      g.globalAlpha = 1;
+    } else {
+      g.strokeStyle = 'rgba(236,235,229,0.9)';
+      g.beginPath(); g.moveTo(x - r - 8, y); g.lineTo(x - r - 2, y); g.moveTo(x + r + 2, y); g.lineTo(x + r + 8, y); g.moveTo(x, y - r - 8); g.lineTo(x, y - r - 2); g.moveTo(x, y + r + 2); g.lineTo(x, y + r + 8); g.stroke();
+    }
+  };
+  body(sx, sy, 11, 'src');
+  body(ex, ey, 9, 'ear');
+  const caption = (x, y, dx, dy, title, line) => {
+    g.strokeStyle = 'rgba(236,235,229,0.6)'; g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(x + Math.sign(dx) * 14, y + Math.sign(dy) * 10); g.lineTo(x + dx, y + dy); g.lineTo(x + dx + Math.sign(dx) * 12, y + dy); g.stroke();
+    g.font = '11px Bahnschrift, "Arial Narrow", sans-serif';
+    g.fillStyle = '#ecebe5';
+    const tx = dx > 0 ? x + dx + 16 : x + dx - 16 - g.measureText(title).width;
+    g.fillText(title, tx, y + dy - 2);
+    g.font = '9px Consolas, monospace'; g.fillStyle = 'rgba(236,235,229,0.6)';
+    const lx = dx > 0 ? x + dx + 16 : x + dx - 16 - g.measureText(line).width;
+    g.fillText(line, lx, y + dy + 10);
+  };
+  const ears = bridge.choices.get('ear') || SPECS.ear.choices;
+  caption(sx, sy, sx > P.x1 - 170 ? -26 : 26, sy < P.surf + 70 ? 30 : -30, 'SOURCE', `${metres(G.zs)} deep · ${metres(G.r)} away`);
+  caption(ex, ey, 26, ey < P.surf + 70 ? 30 : -30, 'LISTENER', `${(ears[Math.round(bridge.value('ear'))] || '').toLowerCase()} · ${metres(G.zr)} deep`);
+
+  // The frame, the plate number, the facts at the foot.
+  g.strokeStyle = 'rgba(236,235,229,0.22)'; g.lineWidth = 1;
+  g.strokeRect(P.x0 - 0.5, P.top - 0.5, W + 1, P.bottom - P.top + 1);
+  g.fillStyle = 'rgba(236,235,229,0.5)';
+  g.font = '9px Consolas, monospace';
+  g.fillText('FATHOM / FLOW OF SOUND IN SEA WATER / c 1500 m/s', P.x0, 14);
+  g.fillText(live.cpu !== null ? `${(live.sampleRate / 1000).toFixed(1)} kHz · CPU ${live.cpu.toFixed(1)} %` : 'PREVIEW', P.x1 - 120, 14);
+  g.font = 'italic 15px ' + getComputedStyle(document.body).getPropertyValue('--hand');
+  g.fillStyle = 'rgba(236,235,229,0.7)';
+  g.fillText(`Pl. ${String(Math.max(1, presets.current + 1)).padStart(2, '0')}`, P.x1 - 46, P.h - 4);
+  g.font = '9px Consolas, monospace'; g.fillStyle = 'rgba(236,235,229,0.42)';
+  const absHz = live.absorptionHz, cut = live.modalHz;
+  g.fillText(`ABSORPTION ${absHz > 0 ? hz(absHz) : 'none'} · WAVEGUIDE ${cut > 15 ? Math.round(cut) + ' Hz' : 'open'} · MUFFLE ${bridge.text('muffle')}`, P.x0, P.h - 4);
+  return { G, sx, sy, ex, ey, level };
+}
+
+// Drag the source (distance, depth) and the ear (depth); wheel = depth of the sea.
+(() => {
+  const cv = document.getElementById('hud');
+  let grab = null;
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * P.w, y: (e.clientY - r.top) / r.height * P.h }; };
+  const near = (p, s) => s && (Math.hypot(p.x - s.sx, p.y - s.sy) < 18 ? 'src' : Math.hypot(p.x - s.ex, p.y - s.ey) < 16 ? 'ear' : null);
+  const ids = k => k === 'src' ? ['distance', 'src_depth'] : ['lis_depth'];
+  cv.addEventListener('pointermove', e => {
+    const p = pos(e);
+    if (!grab) { cv.style.cursor = near(p, window.__scene) ? 'grab' : 'default'; return; }
+    const G = geometry();
+    const z = Math.max(0.1, Math.min(G.H * 0.995, zOf(p.y, G)));
+    if (grab === 'src') {
+      const u = ((p.x - P.x0) / (P.x1 - P.x0) - 0.25) / 0.68;
+      bridge.set('distance', Math.max(0, Math.min(1, u)));
+      bridge.set('src_depth', U.tDepth(z));
+    } else bridge.set('lis_depth', U.tDepth(z));
+  });
+  cv.addEventListener('pointerdown', e => {
+    grab = near(pos(e), window.__scene);
+    if (!grab) return;
+    cv.setPointerCapture(e.pointerId);
+    cv.style.cursor = 'grabbing';
+    for (const id of ids(grab)) bridge.drag(id, true);
+  });
+  cv.addEventListener('pointerup', () => { if (grab) for (const id of ids(grab)) bridge.drag(id, false); grab = null; cv.style.cursor = 'default'; });
+  cv.addEventListener('wheel', e => { e.preventDefault(); bridge.drag('water_depth', true); bridge.set('water_depth', bridge.value('water_depth') - Math.sign(e.deltaY) * 0.01); bridge.drag('water_depth', false); }, { passive: false });
+})();
+
+// ======================================================================================
+// Side panels
+// ======================================================================================
+function panel(id) {
+  const cv = document.getElementById(id), W = 390, H = 74;
+  if (cv.width !== Math.round(W * dpr)) cv.width = Math.round(W * dpr), cv.height = Math.round(H * dpr), cv.style.height = H + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  g.font = '8.5px Consolas, monospace';
+  return { g, W, H };
+}
+function drawArrivals() {
+  const { g, W, H } = panel('arrivals');
+  let list = live.arrivals ? live.arrivals.map(a => ({ ms: a[0], g: a[1], ns: a[2], nb: a[3] })) : rays(geometry());
+  list = list.filter(a => Math.abs(a.g) > 0.004);
+  const echo = bridge.value('echo_on') > 0.5 ? (bridge.juce ? live.echoMs : 2000 * U.echo(bridge.value('echo_dist')) / 1500) : 0;
+  const top = Math.max(0.01, ...list.map(a => Math.abs(a.g)));
+  const last = Math.max(1, ...list.map(a => a.ms), echo);
+  const span = Math.min(4200, last * 1.1);
+  const mid = H / 2;
+  g.fillStyle = 'rgba(236,235,229,0.3)';
+  for (let i = 0; i <= 4; ++i) { const x = 4 + (W - 8) * i / 4; g.fillRect(x, H - 10, 1, 3); g.fillText((span * i / 4).toFixed(span < 20 ? 1 : 0) + ' ms', Math.min(x + 2, W - 40), H - 2); }
+  g.fillStyle = 'rgba(236,235,229,0.25)'; g.fillRect(4, mid, W - 8, 1);
+  for (const a of list) {
+    const x = 4 + (W - 8) * Math.min(1, a.ms / span), h = Math.abs(a.g) / top * (H / 2 - 10);
+    g.fillStyle = a.ns === 0 && a.nb === 0 ? '#ecebe5' : `rgba(236,235,229,${a.g < 0 ? 0.5 : 0.8})`;
+    g.fillRect(x - 0.6, a.g >= 0 ? mid - h : mid, 1.6, h);
+  }
+  if (echo > 0) {
+    const x = 4 + (W - 8) * Math.min(1, echo / span);
+    g.setLineDash([2, 2]); g.strokeStyle = 'rgba(236,235,229,0.7)'; g.beginPath(); g.moveTo(x, 6); g.lineTo(x, H - 12); g.stroke(); g.setLineDash([]);
+    g.fillStyle = 'rgba(236,235,229,0.7)'; g.fillText('ECHO', Math.min(x + 3, W - 28), 12);
+  }
+  document.getElementById('arrivalsInfo').textContent = `${list.length} PATHS · + IN PHASE / − INVERTED`;
+}
+function drawCurve() {
+  const { g, W, H } = panel('curve');
+  const lo = -48, hi = 12, y = db => 4 + (hi - Math.max(lo, Math.min(hi, db))) / (hi - lo) * (H - 14);
+  const x = f => 4 + (W - 8) * Math.log(f / 20) / Math.log(1000);
+  g.fillStyle = 'rgba(236,235,229,0.3)';
+  for (const f of [100, 1000, 10000]) { g.fillRect(x(f), H - 10, 1, 3); g.fillText(f >= 1000 ? f / 1000 + 'k' : f, x(f) + 2, H - 2); }
+  g.fillStyle = 'rgba(236,235,229,0.2)'; g.fillRect(4, y(0), W - 8, 1);
+  const curve = live.curve || previewCurve();
+  g.beginPath();
+  curve.forEach((db, i) => { const px = 4 + (W - 8) * i / (curve.length - 1); i ? g.lineTo(px, y(db)) : g.moveTo(px, y(db)); });
+  g.strokeStyle = '#ecebe5'; g.lineWidth = 1.3; g.stroke();
+  g.lineTo(W - 4, H - 10); g.lineTo(4, H - 10); g.closePath();
+  g.fillStyle = 'rgba(236,235,229,0.07)'; g.fill();
+  const ears = bridge.choices.get('ear') || SPECS.ear.choices;
+  document.getElementById('curveInfo').textContent = `${(ears[Math.round(bridge.value('ear'))] || '').toUpperCase()} + MUFFLE · LEVEL MATCHED`;
+}
+function previewCurve() {
+  const m = Math.round(bridge.value('ear')), a = bridge.value('ear_amount') * bridge.value('submerge'), fc = U.muffleHz(bridge.value('muffle'));
+  return Array.from({ length: 64 }, (_, i) => {
+    const f = 20 * Math.pow(1000, i / 63), l = Math.log2(f / 1000);
+    const shape = [0, -Math.max(0, l - 2.4) * 8 - Math.exp(-Math.pow(l - 1.6, 2) * 2) * 9 + Math.exp(-Math.pow(l + 0.6, 2)) * 4 - Math.max(0, -l - 2.7) * 12,
+      Math.exp(-Math.pow(l + 0.95, 2) * 8) * 7 + Math.exp(-Math.pow(l - 0.7, 2) * 10) * 6 - Math.max(0, l - 1.8) * 12 - Math.max(0, -l - 2.4) * 12,
+      -Math.max(0, l + 0.55) * 22 + 3 * Math.exp(-Math.pow(l + 3.2, 2))][m] || 0;
+    const muff = fc > 0 ? -Math.max(0, Math.log2(f / fc)) * 24 : 0;
+    return shape * a + muff;
+  });
+}
+
+// ======================================================================================
+// Main loop
+// ======================================================================================
+function layout() {
+  zoom = Math.min(window.innerWidth / 1280, window.innerHeight / 800);
+  document.getElementById('page').style.transform = `scale(${zoom})`;
+  dpr = (window.devicePixelRatio || 1) * zoom;
+  const gr = document.getElementById('grain');
+  if (gr.width !== 640) {  // static film grain over everything
+    gr.width = 640; gr.height = 400;
+    const gg = gr.getContext('2d'), img = gg.createImageData(640, 400);
+    for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+    gg.putImageData(img, 0, 0);
+    gr.style.width = '1280px'; gr.style.height = '800px';
+  }
+}
+window.addEventListener('resize', layout);
+layout();
+buildModules();
+const levers = [
+  lever('submerge', 'submergeBox', 'submergeCanvas', 'submergeVal', 'submerge'),
+  lever('muffle', 'muffleBox', 'muffleCanvas', 'muffleVal', 'muffle'),
+  lever('dry', 'dryBox', 'dryCanvas', 'dryVal', 'bar'),
+  lever('wet', 'wetBox', 'wetCanvas', 'wetVal', 'bar'),
+];
+
+// ?warm (for a still picture, e.g. a headless screenshot): run the flow ~12 s ahead first.
+if (fluid && location.search.includes('warm')) {
+  const s = drawPlate(0, 0);
+  const rect = { x: P.x0, y: P.surf, w: P.x1 - P.x0, h: P.floor - P.surf };
+  const toUv = (x, y) => [(x - rect.x) / rect.w, 1 - (y - rect.y) / rect.h];
+  for (let i = 0; i < 720; ++i) {
+    live.simulate(i / 60);
+    fluid.step(1 / 60, { srcPos: toUv(s.sx, s.sy), earPos: toUv(s.ex, s.ey), srcR: 11 / rect.h, earR: 9 / rect.h, aspect: rect.w / rect.h,
+      speed: 26 + 18 * live.in, waves: Math.min(1.2, s.G.waves * 2.5), time: i / 60, shed: 0.15 + 1.2 * live.in, curl: 4 + 14 * live.in, lines: 28, keep: 0.9995 });
+  }
+}
+
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  const t = now / 1000;
+  if (!bridge.juce) live.simulate(t);
+  const s = drawPlate(t, dt);
+  window.__scene = s;
+  if (fluid) {
+    const rect = { x: P.x0, y: P.surf, w: P.x1 - P.x0, h: P.floor - P.surf };
+    const toUv = (x, y) => [(x - rect.x) / rect.w, 1 - (y - rect.y) / rect.h];
+    const submerge = bridge.value('submerge'), muffle = bridge.value('muffle');
+    const loud = Math.min(1.4, s.level * 1.3);
+    fluid.step(dt, {
+      srcPos: toUv(s.sx, s.sy), earPos: toUv(s.ex, s.ey), srcR: 11 / rect.h, earR: 9 / rect.h, aspect: rect.w / rect.h,
+      speed: 26 + 18 * loud, waves: Math.min(1.2, s.G.waves * 2.5), time: t, shed: 0.15 + 1.2 * loud,
+      curl: 4 + 14 * loud, lines: 28, keep: 0.9995,
+    });
+    fluid.draw({ time: t, blur: 0.4 + 3.2 * muffle, glow: 0.4 + Math.min(1, live.out), exposure: 0.55 + 0.6 * submerge }, rect);
+  }
+  drawArrivals();
+  drawCurve();
+  levers.forEach(l => l(t));
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if (window.__JUCE__) bridge.connect(await import('./juce/index.js'));
+else {  // browser preview: the preset names as in Presets.h
+  presets.list = [
+    ['MASTER', "Sous l'eau"], ['MASTER', 'Profond'], ['MASTER', 'Étouffé à fond'], ['SCÈNE', 'Plongeon'], ['SCÈNE', 'Nage près de la surface'],
+    ['SCÈNE', 'Sirène, voix proche'], ['SCÈNE', 'Sirène, chant lointain'], ['SCÈNE', 'Coquille géante'], ['SCÈNE', 'Fonds marins qui bougent'],
+    ['LIEU', 'Récif'], ['LIEU', 'Grotte sous-marine'], ['LIEU', 'Épave'], ['LIEU', 'Piscine'], ['LIEU', 'Aquarium'], ['LIEU', 'Sous la banquise'],
+    ['LIEU', 'Haute mer, 1 km'], ['LIEU', 'Abysses, 4000 m'], ['LIEU', 'Fosse des Mariannes'], ['ÉCOUTE', 'Hydrophone documentaire'],
+    ['ÉCOUTE', 'Scaphandre'], ['ÉCOUTE', 'Cinéma classique'],
+  ].map(([category, name]) => ({ category, name, note: '' }));
+  presets.build();
+  presets.show(0);
+}
+</script>
+</body>
+</html>
