@@ -77,6 +77,8 @@ body { color: var(--ink); font-family: var(--type); -webkit-font-smoothing: anti
 .ctl .row { display: flex; justify-content: space-between; align-items: baseline; }
 .ctl .lab { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; color: var(--dim); }
 .ctl .val { font-size: 13.5px; letter-spacing: 0.03em; white-space: nowrap; }
+/* A value being typed: the same text, on a thin rule. */
+.val-edit { font: inherit; letter-spacing: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid currentColor; padding: 0; margin: 0; outline: none; width: auto; text-align: inherit; }
 .ctl .track { position: relative; height: 8px; margin-top: 2px; }
 .ctl .track::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: var(--line-strong); }
 .ctl .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%); }
@@ -254,8 +256,80 @@ const bridge = {
 // Controls
 // ======================================================================================
 let zoom = 1, dpr = window.devicePixelRatio || 1;
-// Drag sideways (or up) to move, Shift for fine, double-click for the default, wheel steps.
-function dragValue(el, id, pixels) {
+// Typing a value: the position whose shown text matches. Words and divisions ("off",
+// "real water") match as they read; numbers are compared in the shown unit (a bare "5"
+// next to "4.5 kHz" means 5 kHz; "k" and "ms" are understood).
+function valueFromText(format, typed, current) {
+  // ∞ / inf, × / x and the true minus sign read the same as what can be typed.
+  const clean = s => String(s).trim().toLowerCase().replace(',', '.').replace(/\s+/g, ' ').replace(/infinity|∞/g, 'inf').replace(/×/g, 'x').replace(/−/g, '-');
+  const want = clean(typed);
+  if (!want) return null;
+  const N = 2000, at = i => i / N;
+  let best = null, bestScore = Infinity;
+  for (let i = 0; i <= N; i++) if (clean(format(at(i))) === want && Math.abs(at(i) - current) < bestScore) best = at(i), bestScore = Math.abs(at(i) - current);
+  if (best !== null) return best;
+  const num = s => {
+    const c = clean(s), m = c.match(/[-+]?\d*\.?\d+/);
+    if (!m) return null;
+    const rest = c.slice(m.index + m[0].length).trim();
+    return { v: parseFloat(m[0]) * (/^k/.test(rest) ? 1000 : /^ms/.test(rest) ? 0.001 : 1), unit: /[a-z%]/.test(rest) };
+  };
+  const t = num(typed);
+  if (!t) return null;
+  let wanted = t.v;
+  if (!t.unit) {  // no unit typed: the one on screen
+    const shown = clean(format(current)), m = shown.match(/[-+]?\d*\.?\d+/);
+    const rest = m ? shown.slice(m.index + m[0].length).trim() : '';
+    wanted *= /^k/.test(rest) ? 1000 : /^ms/.test(rest) ? 0.001 : 1;
+  }
+  for (let i = 0; i <= N; i++) {
+    const c = num(format(at(i)));
+    if (!c) continue;
+    const score = Math.abs(c.v - wanted) + 1e-6 * Math.abs(at(i) - current);
+    if (score < bestScore) best = at(i), bestScore = score;
+  }
+  return best;
+}
+// Double-click on a value: a field to type it in (Enter sets it, Escape leaves it).
+function editValue(label, format, current, commit) {
+  if (label.querySelector('input')) return;
+  const input = document.createElement('input');
+  input.className = 'val-edit';
+  input.value = label.textContent;
+  input.size = Math.max(4, input.value.length);
+  label.textContent = '';
+  label.appendChild(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = ok => {
+    if (done) return;
+    done = true;
+    const typed = input.value;
+    input.remove();
+    const t = ok ? valueFromText(format, typed, current()) : null;
+    if (t !== null) commit(t);
+    label.textContent = format(current());
+  };
+  input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); });
+  input.addEventListener('pointerdown', e => e.stopPropagation());
+  input.addEventListener('blur', () => finish(true));
+}
+const inside = (e, box) => { const r = box.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+// ↑ ↓ move the control under the mouse: 1 % a step, 0.1 % with Shift.
+let hovered = null;
+document.addEventListener('keydown', e => {
+  if (!hovered || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  e.preventDefault();
+  hovered((e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.001 : 0.01));
+});
+
+// Drag sideways (or up) to move, Shift for fine (10×), ↑ ↓ to step, double-click the value
+// to type it, double-click elsewhere for the default, wheel steps.
+function dragValue(el, id, pixels, valueEl) {
+  const nudge = d => { bridge.drag(id, true); bridge.set(id, bridge.value(id) + d); bridge.drag(id, false); };
+  el.addEventListener('pointerenter', () => { hovered = nudge; });
+  el.addEventListener('pointerleave', () => { if (hovered === nudge) hovered = null; });
   el.addEventListener('pointerdown', e => {
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
@@ -276,7 +350,13 @@ function dragValue(el, id, pixels) {
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
   });
-  el.addEventListener('dblclick', () => { bridge.drag(id, true); bridge.set(id, SPECS[id].def); bridge.drag(id, false); });
+  el.addEventListener('dblclick', e => {
+    if (valueEl && inside(e, valueEl) && SPECS[id].text) {
+      editValue(valueEl, SPECS[id].text, () => bridge.value(id), t => { bridge.drag(id, true); bridge.set(id, t); bridge.drag(id, false); });
+      return;
+    }
+    bridge.drag(id, true); bridge.set(id, SPECS[id].def); bridge.drag(id, false);
+  });
   el.addEventListener('wheel', e => { e.preventDefault(); bridge.drag(id, true); bridge.set(id, bridge.value(id) - Math.sign(e.deltaY) * (e.shiftKey ? 0.002 : 0.01)); bridge.drag(id, false); }, { passive: false });
 }
 function slider(id, root) {
@@ -290,7 +370,7 @@ function slider(id, root) {
     knob.style.left = `calc(${v * 100}% - 0.5px)`;
     val.textContent = bridge.text(id);
   });
-  dragValue(el, id, 170);
+  dragValue(el, id, 170, val);
 }
 function chips(id, root) {
   const box = document.createElement('div');
@@ -331,7 +411,7 @@ function buildModules() {
 function lever(id, boxId, canvasId, valId, kind) {
   const box = document.getElementById(boxId), cv = document.getElementById(canvasId), val = document.getElementById(valId);
   bridge.register(id, () => { val.textContent = bridge.text(id); });
-  dragValue(box, id, kind === 'bar' ? 190 : 330);
+  dragValue(box, id, kind === 'bar' ? 190 : 330, val);
   return t => {
     const w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== Math.round(w * dpr)) cv.width = Math.round(w * dpr), cv.height = Math.round(h * dpr);
