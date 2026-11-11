@@ -412,10 +412,20 @@ function lever(id, boxId, canvasId, valId, kind) {
   const box = document.getElementById(boxId), cv = document.getElementById(canvasId), val = document.getElementById(valId);
   bridge.register(id, () => { val.textContent = bridge.text(id); });
   dragValue(box, id, kind === 'bar' ? 190 : 330, val);
+  // Drawn only when it has something new to show: a bar changes with its value alone, and
+  // a lever at 0 has no wave inside (MUFFLE at rest: seven still lines). The sizes are
+  // read twice a second (a read forces a layout pass), not every frame.
+  let w = 0, h = 0, sizedAt = -1e9, drawn = '';
+  const g = cv.getContext('2d');
   return t => {
-    const w = cv.clientWidth, h = cv.clientHeight;
-    if (cv.width !== Math.round(w * dpr)) cv.width = Math.round(w * dpr), cv.height = Math.round(h * dpr);
-    const g = cv.getContext('2d'), v = bridge.value(id);
+    const now = performance.now();
+    if (now - sizedAt > 500) { w = cv.clientWidth; h = cv.clientHeight; sizedAt = now; }
+    const v = bridge.value(id);
+    let resized = false;
+    if (cv.width !== Math.round(w * dpr)) cv.width = Math.round(w * dpr), cv.height = Math.round(h * dpr), resized = true;
+    const still = kind === 'bar' || v <= 0, look = v + '|' + w + '|' + h + '|' + dpr;
+    if (still && !resized && look === drawn) return;
+    drawn = still ? look : '';
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
     if (kind === 'bar') {
@@ -425,10 +435,12 @@ function lever(id, boxId, canvasId, valId, kind) {
       g.fillStyle = 'rgba(236,235,229,0.4)'; g.fillRect(w * 48 / 60, h - 4, 1, 4);  // 0 dB
       return;
     }
+    // The seven lines share one colour: one path, one stroke (and for MUFFLE one blur
+    // instead of seven: the filter is the costly part).
     const lines = 7;
+    g.beginPath();
     for (let k = 0; k < lines; ++k) {
       const y0 = 3 + (h - 6) * k / (lines - 1);
-      g.beginPath();
       for (let x = 0; x <= w; x += 3) {
         const u = x / w, inside = u <= v;
         let y = y0;
@@ -436,12 +448,12 @@ function lever(id, boxId, canvasId, valId, kind) {
         if (kind === 'muffle' && inside) y += Math.sin(x * 0.3 + k * 9.1 + t * 1.3) * 1.6 * u;
         x === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
       }
-      if (kind === 'muffle') g.filter = `blur(${0.3 + 1.6 * v}px)`;
-      g.strokeStyle = `rgba(236,235,229,${0.25 + 0.6 * (kind === 'muffle' ? 1 - 0.5 * v : 1)})`;
-      g.lineWidth = 0.8;
-      g.stroke();
-      g.filter = 'none';
     }
+    if (kind === 'muffle') g.filter = `blur(${0.3 + 1.6 * v}px)`;
+    g.strokeStyle = `rgba(236,235,229,${0.25 + 0.6 * (kind === 'muffle' ? 1 - 0.5 * v : 1)})`;
+    g.lineWidth = 0.8;
+    g.stroke();
+    g.filter = 'none';
     g.fillStyle = 'rgba(236,235,229,0.08)'; g.fillRect(0, 0, v * w, h);
     g.fillStyle = '#ecebe5'; g.fillRect(v * w - 1, 0, 2, h);
   };
@@ -912,6 +924,16 @@ function drawPlate(t, dt) {
 // ======================================================================================
 // Side panels
 // ======================================================================================
+// A panel shows a list or a curve that only changes with a setting: `shown` is what it
+// last drew (with the scale), and it is left alone while that has not changed.
+const panelShown = {};
+function panelStale(id, what) {
+  const key = what + '|' + dpr;
+  if (panelShown[id] === key) return false;
+  panelShown[id] = key;
+  return true;
+}
+const setText = (id, text) => { const el = document.getElementById(id); if (el.textContent !== text) el.textContent = text; };
 function panel(id) {
   const cv = document.getElementById(id), W = 390, H = 74;
   if (cv.width !== Math.round(W * dpr)) cv.width = Math.round(W * dpr), cv.height = Math.round(H * dpr), cv.style.height = H + 'px';
@@ -922,10 +944,11 @@ function panel(id) {
   return { g, W, H };
 }
 function drawArrivals() {
-  const { g, W, H } = panel('arrivals');
   let list = live.arrivals ? live.arrivals.map(a => ({ ms: a[0], g: a[1], ns: a[2], nb: a[3] })) : rays(geometry());
   list = list.filter(a => Math.abs(a.g) > 0.004);
   const echo = bridge.value('echo_on') > 0.5 ? (bridge.juce ? live.echoMs : 2000 * U.echo(bridge.value('echo_dist')) / 1500) : 0;
+  if (!panelStale('arrivals', echo + ';' + list.map(a => a.ms + ',' + a.g + ',' + a.ns + ',' + a.nb).join(';'))) return;
+  const { g, W, H } = panel('arrivals');
   const top = Math.max(0.01, ...list.map(a => Math.abs(a.g)));
   const last = Math.max(1, ...list.map(a => a.ms), echo);
   const span = Math.min(4200, last * 1.1);
@@ -943,23 +966,25 @@ function drawArrivals() {
     g.setLineDash([2, 2]); g.strokeStyle = 'rgba(236,235,229,0.7)'; g.beginPath(); g.moveTo(x, 6); g.lineTo(x, H - 12); g.stroke(); g.setLineDash([]);
     g.fillStyle = 'rgba(236,235,229,0.7)'; g.fillText('ECHO', Math.min(x + 3, W - 28), 12);
   }
-  document.getElementById('arrivalsInfo').textContent = `${list.length} PATHS · + IN PHASE / − INVERTED`;
+  setText('arrivalsInfo', `${list.length} PATHS · + IN PHASE / − INVERTED`);
 }
 function drawCurve() {
+  const curve = live.curve || previewCurve();
+  const ears = bridge.choices.get('ear') || SPECS.ear.choices;
+  const ear = (ears[Math.round(bridge.value('ear'))] || '').toUpperCase();
+  if (!panelStale('curve', ear + ';' + curve.join(','))) return;
   const { g, W, H } = panel('curve');
   const lo = -48, hi = 12, y = db => 4 + (hi - Math.max(lo, Math.min(hi, db))) / (hi - lo) * (H - 14);
   const x = f => 4 + (W - 8) * Math.log(f / 20) / Math.log(1000);
   g.fillStyle = 'rgba(236,235,229,0.3)';
   for (const f of [100, 1000, 10000]) { g.fillRect(x(f), H - 10, 1, 3); g.fillText(f >= 1000 ? f / 1000 + 'k' : f, x(f) + 2, H - 2); }
   g.fillStyle = 'rgba(236,235,229,0.2)'; g.fillRect(4, y(0), W - 8, 1);
-  const curve = live.curve || previewCurve();
   g.beginPath();
   curve.forEach((db, i) => { const px = 4 + (W - 8) * i / (curve.length - 1); i ? g.lineTo(px, y(db)) : g.moveTo(px, y(db)); });
   g.strokeStyle = '#ecebe5'; g.lineWidth = 1.3; g.stroke();
   g.lineTo(W - 4, H - 10); g.lineTo(4, H - 10); g.closePath();
   g.fillStyle = 'rgba(236,235,229,0.07)'; g.fill();
-  const ears = bridge.choices.get('ear') || SPECS.ear.choices;
-  document.getElementById('curveInfo').textContent = `${(ears[Math.round(bridge.value('ear'))] || '').toUpperCase()} + MUFFLE · LEVEL MATCHED`;
+  setText('curveInfo', `${ear} + MUFFLE · LEVEL MATCHED`);
 }
 function previewCurve() {
   const m = Math.round(bridge.value('ear')), a = bridge.value('ear_amount') * bridge.value('submerge'), fc = U.muffleHz(bridge.value('muffle'));
@@ -1011,8 +1036,13 @@ if (fluid && location.search.includes('warm')) {
   }
 }
 
+// The plugin sends its data 30 times a second: the page draws at that rate (one frame in
+// two on a 60 Hz display). The flow advances by the real time between frames, so it moves
+// at the same speed.
 let lastT = performance.now();
 function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - lastT < 30) return;
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
   const t = now / 1000;
@@ -1034,7 +1064,6 @@ function frame(now) {
   drawArrivals();
   drawCurve();
   levers.forEach(l => l(t));
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 

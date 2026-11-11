@@ -37,7 +37,7 @@ std::vector<juce::AudioProcessorParameter*> ownParameters(juce::AudioPluginInsta
 struct Result {
     float peak = 0.0f;
     bool finite = true;
-    double worstLoad = 0.0;
+    double worstLoad = 0.0, load = 0.0;  // worst block, and the average, as shares of real time
 };
 
 Result runFor(juce::AudioPluginInstance& p, double seconds, int block, double rate, juce::Random& rng, bool automate, bool varyBlocks) {
@@ -58,6 +58,7 @@ Result runFor(juce::AudioPluginInstance& p, double seconds, int block, double ra
         p.processBlock(buffer, midi);
         const double used = juce::Time::highResolutionTicksToSeconds(juce::Time::getHighResolutionTicks() - t0);
         r.worstLoad = std::max(r.worstLoad, used / (n / rate));
+        r.load += used / (total / rate);
         for (int c = 0; c < 2; ++c)
             for (int i = 0; i < n; ++i) {
                 const float s = buffer.getSample(c, i);
@@ -151,7 +152,7 @@ int main(int argc, char** argv) {
             check(r.finite, "NaN/Inf, block " + juce::String(block));
             check(r.peak <= 1.0f, "peak " + juce::String(r.peak) + ", block " + juce::String(block));
             if (timing) check(r.worstLoad < 1.0, "block " + juce::String(block) + " took " + juce::String(r.worstLoad * 100.0, 0) + " % of its budget");
-            std::printf("  block %4d: peak %.3f, worst block %5.1f %% of budget\n", block, r.peak, r.worstLoad * 100.0);
+            std::printf("  block %4d: peak %.3f, CPU %4.1f %%, worst block %5.1f %% of budget\n", block, r.peak, r.load * 100.0, r.worstLoad * 100.0);
         }
         const auto odd = runFor(*plugin, 5.0, 0, rate, rng, true, true);
         check(odd.finite && odd.peak <= 1.0f, "odd block sizes");
@@ -160,7 +161,7 @@ int main(int argc, char** argv) {
             plugin->setCurrentProgram(i);
             const auto r = runFor(*plugin, 1.5, 512, rate, rng, false, false);
             check(r.finite && r.peak <= 1.0f, "program " + juce::String(i) + " " + plugin->getProgramName(i));
-            if (rate == 48000.0) std::printf("  program %2d %-40s peak %.3f, worst %5.1f %%\n", i, plugin->getProgramName(i).toRawUTF8(), r.peak, r.worstLoad * 100.0);
+            if (rate == 48000.0) std::printf("  program %2d %-40s peak %.3f, CPU %4.1f %%, worst %5.1f %%\n", i, plugin->getProgramName(i).toRawUTF8(), r.peak, r.load * 100.0, r.worstLoad * 100.0);
         }
 
         // State round trip: a random state saved, scrambled, restored.

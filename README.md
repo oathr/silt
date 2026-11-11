@@ -57,6 +57,10 @@ them into smoke. Drag the **source** (distance and depth) and the **listener** (
 mouse wheel over the plate sets the depth of the sea. The paths are dotted (tight dots = an
 inverted arrival).
 
+Every slider and lever: drag (Shift for 10× finer), ↑ / ↓ with the mouse over it (1 % a step,
+0.1 % with Shift), double-click its value to type it ("25", "1.5k", "-6", "real water"; Enter
+sets it, Escape leaves it), double-click elsewhere on it for the default.
+
 ## Presets
 
 MASTER: Sous l'eau (the starting point) · Profond · Étouffé à fond.
@@ -104,7 +108,13 @@ JUCE 8 is fetched by CMake (set `FETCHCONTENT_SOURCE_DIR_JUCE` to reuse a local 
 - Echo, wall at 75 m: 100.1 ms (theory 100.0).
 - MUFFLE corner: 2960 / 805 / 257 / 90 Hz at 25 / 50 / 75 / 100 %.
 - Level on pink noise: MASTER / Sous l'eau at 0.0 dB from the dry, the other presets within +1 / −4 dB.
-- CPU: 11 to 37× faster than real time on one core, depending on the preset.
+- CPU: 11 to 37× faster than real time on one core, depending on the preset (2 to 3 % of a core
+  at 48 kHz in the host test, which now prints the average beside the worst block).
+- The interface, window open (v0.2.1): 39 % → 17 % of a core (Standalone, all WebView2 processes;
+  9 % of that is the floor with nothing drawn). It draws 30 times a second, the rate the plugin
+  sends its data at; the arrivals and the curve are redrawn only when what they show changes, a
+  bar only when its value does, a lever at 0 not at all, and MUFFLE's seven lines share one blur.
+  The flow itself costs almost nothing (the graphics card draws it). The sound is untouched.
 - 60 s of random settings on loud noise: always finite.
 - Host test: 44.1 / 48 / 96 kHz, buffers 64 to 2048, 21 presets, state round trip: all pass.
 
